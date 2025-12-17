@@ -1,0 +1,2772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Location Map</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+            background: #000;
+        }
+
+        /* Elegant backdrop blur for panels - Mapbox style */
+        .info-panel,
+        .tracking-panel,
+        .drive-mode-panel,
+        .controls,
+        .view-toggle,
+        .map-controls-3d,
+        .drive-mode-toggle {
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 300px;
+            font-size: 14px;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .info-panel p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .error {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ff4444;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .controls button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        .controls button:hover {
+            background: #2980b9;
+        }
+
+        .controls button.active {
+            background: #27ae60;
+        }
+
+        .tracking-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 350px;
+            font-size: 14px;
+        }
+
+        .tracking-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .tracking-panel .input-group {
+            margin-bottom: 15px;
+        }
+
+        .tracking-panel label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .tracking-panel input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .search-result-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+
+        .search-result-item:hover {
+            background: #f5f5f5;
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-result-item .name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .search-result-item .address {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .tracking-panel button {
+            width: 100%;
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .tracking-panel button:hover {
+            background: #2980b9;
+        }
+
+        .tracking-panel button.secondary {
+            background: #95a5a6;
+            margin-top: 5px;
+        }
+
+        .tracking-panel button.secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .tracking-info {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .tracking-info p {
+            margin: 8px 0;
+            color: #666;
+        }
+
+        .tracking-info strong {
+            color: #333;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .mode-selector button {
+            flex: 1;
+            padding: 8px;
+            margin: 0;
+        }
+
+        .selection-mode {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(52, 152, 219, 0.9);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1001;
+            display: none;
+            pointer-events: none;
+        }
+
+        .marker.clickable {
+            cursor: pointer;
+        }
+
+        .drive-mode-panel {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 350px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .drive-mode-panel.active {
+            display: block;
+        }
+
+        .drive-mode-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #e74c3c;
+            padding-bottom: 10px;
+        }
+
+        .navigation-instruction {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 4px solid #3498db;
+        }
+
+        .navigation-instruction.active {
+            background: #e3f2fd;
+            border-left-color: #e74c3c;
+        }
+
+        .navigation-instruction .distance {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e74c3c;
+            margin-bottom: 5px;
+        }
+
+        .navigation-instruction .maneuver {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .navigation-instruction .street {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .navigation-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .navigation-controls button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .navigation-controls button.start {
+            background: #27ae60;
+            color: white;
+        }
+
+        .navigation-controls button.start:hover {
+            background: #229954;
+        }
+
+        .navigation-controls button.stop {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .navigation-controls button.stop:hover {
+            background: #c0392b;
+        }
+
+        .navigation-controls button.pause {
+            background: #f39c12;
+            color: white;
+        }
+
+        .navigation-controls button.pause:hover {
+            background: #e67e22;
+        }
+
+        .navigation-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .stat-item .label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .drive-mode-toggle {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .drive-mode-toggle:hover {
+            background: #c0392b;
+        }
+
+        .view-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .view-toggle:hover {
+            background: #f0f0f0;
+        }
+
+        .view-toggle.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .view-toggle.active:hover {
+            background: #2980b9;
+        }
+
+        .map-controls-3d {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .map-controls-3d.active {
+            display: block;
+        }
+
+        .map-controls-3d button {
+            display: block;
+            width: 40px;
+            height: 40px;
+            margin: 5px 0;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .map-controls-3d button:hover {
+            background: #2980b9;
+        }
+
+        .navigation-route {
+            stroke: #e74c3c;
+            stroke-width: 4;
+            stroke-opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="loading" id="loading" style="display: none;">
+        <div class="spinner"></div>
+        <span>Loading device locations...</span>
+    </div>
+    <div class="error" id="error"></div>
+    <div class="selection-mode" id="selectionMode">
+        Click on the map to set <span id="selectionType">source</span>
+    </div>
+    <div class="controls">
+        <button id="showRoute">Show Route</button>
+        <button id="showMarkers" class="active">Show Markers</button>
+        <button id="fitBounds">Fit to Route</button>
+        <button id="addTestPoint" title="Add a test point to test vehicle movement (you can specify distance)">+ Test Point</button>
+    </div>
+    <div class="info-panel" id="infoPanel" style="display: none;">
+        <h3>Device Information</h3>
+        <p><strong>Device ID:</strong> <span id="deviceId">-</span></p>
+        <p><strong>Total Points:</strong> <span id="totalPoints">-</span></p>
+        <p><strong>Status:</strong> <span id="status">-</span></p>
+    </div>
+
+    <div class="tracking-panel" id="trackingPanel" style="display: none;">
+        <h3>Route Tracking</h3>
+        <div class="mode-selector">
+            <button id="setSource" class="active">Set Source</button>
+            <button id="setDestination">Set Destination</button>
+        </div>
+        <div class="input-group">
+            <label>Source:</label>
+            <div class="search-container">
+                <input type="text" id="sourceSearch" placeholder="Search place name or click on map">
+                <div class="search-results" id="sourceSearchResults"></div>
+            </div>
+            <input type="text" id="sourceInput" placeholder="Or enter coordinates (Lat, Lng)" style="margin-top: 5px;">
+        </div>
+        <div class="input-group">
+            <label>Destination:</label>
+            <div class="search-container">
+                <input type="text" id="destinationSearch" placeholder="Search place name or click on map">
+                <div class="search-results" id="destinationSearchResults"></div>
+            </div>
+            <input type="text" id="destinationInput" placeholder="Or enter coordinates (Lat, Lng)" style="margin-top: 5px;">
+        </div>
+        <button id="trackRoute">Track Route</button>
+        <button id="clearTracking" class="secondary">Clear Tracking</button>
+        <div class="tracking-info" id="trackingInfo" style="display: none;">
+            <p><strong>Route Points:</strong> <span id="routePoints">-</span></p>
+            <p><strong>Distance:</strong> <span id="routeDistance">-</span></p>
+            <p><strong>Duration:</strong> <span id="routeDuration">-</span></p>
+        </div>
+    </div>
+
+    <button class="view-toggle" id="viewToggle">
+        <span>🌍</span>
+        <span id="viewToggleText">2D View</span>
+    </button>
+    
+    <div class="map-controls-3d" id="mapControls3D">
+        <button id="rotateLeft" title="Rotate Left">↺</button>
+        <button id="rotateRight" title="Rotate Right">↻</button>
+        <button id="tiltUp" title="Tilt Up">↑</button>
+        <button id="tiltDown" title="Tilt Down">↓</button>
+        <button id="resetView" title="Reset View">⟲</button>
+    </div>
+
+    <button class="drive-mode-toggle" id="driveModeToggle">🚗 Drive Mode</button>
+
+    <div class="drive-mode-panel" id="driveModePanel">
+        <h3>🚗 Navigation</h3>
+        <div style="margin-bottom: 10px;">
+            <label style="font-size: 12px; color: #666;">
+                <input type="checkbox" id="useActualRoute" style="margin-right: 5px;">
+                Use actual device route (instead of optimized)
+            </label>
+        </div>
+        <div id="navigationInstructions"></div>
+        <div class="navigation-stats">
+            <div class="stat-item">
+                <div class="value" id="navDistance">-</div>
+                <div class="label">Distance</div>
+            </div>
+            <div class="stat-item">
+                <div class="value" id="navTime">-</div>
+                <div class="label">Time</div>
+            </div>
+            <div class="stat-item">
+                <div class="value" id="navSpeed">-</div>
+                <div class="label">Speed</div>
+            </div>
+        </div>
+        <div class="navigation-controls">
+            <button class="start" id="startNavigation">Start</button>
+            <button class="pause" id="pauseNavigation" style="display: none;">Pause</button>
+            <button class="stop" id="stopNavigation" style="display: none;">Stop</button>
+        </div>
+    </div>
+
+    <script>
+        // Mapbox token
+        mapboxgl.accessToken = 'pk.eyJ1IjoibW9ycGhvLXRlY2giLCJhIjoiY21pZTJ3bXg5MDU0NDJxcjFleDEydWdwNyJ9.sUlct9NbMDjFW4v8bCUPWg';
+
+        // Get initial map style from URL
+        const initialMapStyle = getMapStyleFromUrl();
+
+        // Initialize map with 3D support - Mapbox style
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: `mapbox://styles/mapbox/${initialMapStyle}`, // Use style from URL parameter
+            center: [55.5, 20.0], // Default center (Oman region based on coordinates)
+            zoom: 8,
+            pitch: 60, // Tilt the map (0-60 degrees) - more dramatic 3D
+            bearing: 0, // Rotation (0-360 degrees)
+            antialias: true, // Enable antialiasing for smoother 3D rendering
+            fog: {
+                'range': [0.8, 8],
+                'color': 'white',
+                'horizon-blend': 0.1
+            },
+            light: {
+                'anchor': 'viewport',
+                'color': 'white',
+                'intensity': 0.5
+            }
+        });
+
+        // Enable 3D terrain when map loads
+        map.on('style.load', () => {
+            // Add 3D terrain source
+            if (!map.getSource('mapbox-dem')) {
+                map.addSource('mapbox-dem', {
+                    'type': 'raster-dem',
+                    'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                    'tileSize': 512,
+                    'maxzoom': 14
+                });
+            }
+            
+            // Set terrain with exaggeration for dramatic 3D effect
+            map.setTerrain({ 
+                'source': 'mapbox-dem', 
+                'exaggeration': 2.0 // Increased for more dramatic effect
+            });
+            
+            // Add elegant 3D buildings layer - Mapbox style
+            if (!map.getLayer('3d-buildings')) {
+                map.addLayer({
+                    'id': '3d-buildings',
+                    'source': 'composite',
+                    'source-layer': 'building',
+                    'filter': ['==', 'extrude', 'true'],
+                    'type': 'fill-extrusion',
+                    'minzoom': 13,
+                    'paint': {
+                        // Elegant building colors - varying by height
+                        'fill-extrusion-color': [
+                            'interpolate',
+                            ['linear'],
+                            ['get', 'height'],
+                            0, '#e0e0e0',
+                            50, '#d0d0d0',
+                            100, '#c0c0c0',
+                            200, '#b0b0b0'
+                        ],
+                        'fill-extrusion-height': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            13, 0,
+                            13.05, ['get', 'height']
+                        ],
+                        'fill-extrusion-base': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            13, 0,
+                            13.05, ['get', 'min_height']
+                        ],
+                        'fill-extrusion-opacity': 0.8,
+                        // Add subtle shadow effect
+                        'fill-extrusion-vertical-gradient': true
+                    }
+                });
+            }
+
+            // Add sky layer for atmospheric effect
+            if (!map.getLayer('sky')) {
+                map.addLayer({
+                    'id': 'sky',
+                    'type': 'sky',
+                    'paint': {
+                        'sky-type': 'atmosphere',
+                        'sky-atmosphere-sun': [0.0, 0.0],
+                        'sky-atmosphere-sun-intensity': 15
+                    }
+                });
+            }
+        });
+
+        let markers = [];
+        let routeSource = null;
+        let showRoute = false;
+        let coordinates = [];
+        let allCoordinates = [];
+        let allCoordinatesData = [];
+        let sourceMarker = null;
+        let destinationMarker = null;
+        let sourceCoord = null;
+        let destinationCoord = null;
+        let trackingMode = 'source'; // 'source' or 'destination'
+        let isTracking = false;
+        
+        // Real-time navigation variables
+        let realtimeVehicleMarker = null;
+        let previousLastCoordinate = null;
+        let isVehicleMoving = false;
+        let vehicleAnimationInterval = null;
+        let currentVehiclePosition = null;
+        let targetVehiclePosition = null;
+        let animationStartTime = null;
+        let animationDuration = 5000; // 5 seconds to match refresh rate
+        
+        // 3D view variables
+        let is3DView = true;
+        let currentPitch = 60; // More dramatic 3D view like Mapbox
+        let currentBearing = 0;
+
+        // Drive mode variables
+        let isDriveMode = false;
+        let navigationRoute = null;
+        let navigationInstructions = [];
+        let currentInstructionIndex = 0;
+        let vehicleMarker = null;
+        let navigationInterval = null;
+        let isNavigating = false;
+        let isPaused = false;
+        let currentRouteIndex = 0;
+        let routeCoordinates = [];
+        let navigationStartTime = null;
+        let pausedTime = 0;
+        let totalPausedDuration = 0;
+        let currentPosition = 0; // Current position along the route (0 to 1)
+        let distanceTraveled = 0; // Current distance traveled in meters
+        let navigationSegments = []; // Store segments for pause/resume
+        let currentSegmentIndex = 0;
+        let segmentStartTime = null;
+        const NAVIGATION_SPEED = 120; // km/h
+
+        // Get device serial_number from URL parameter (not numeric device_id)
+        function getDeviceSerialNumberFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('deviceId') || '2228268'; // Default to 2228268 if not provided (serial_number, not device_id)
+        }
+
+        // Get map style from URL parameter
+        function getMapStyleFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('mapStyle') || 'navigation-day-v1'; // Default to navigation-day-v1
+        }
+
+        // API endpoint - uses serial_number, not numeric device_id
+        function getApiUrl(serialNumber) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const startTimestamp = urlParams.get('startTimestamp');
+            const endTimestamp = urlParams.get('endTimestamp');
+
+            const params = new URLSearchParams();
+            params.set('limit', '100');
+            params.set('offset', '0');
+            params.set('order_by', 'timestamp');
+            params.set('order_direction', 'desc');
+
+            // Forward optional timestamp filters to the API
+            if (startTimestamp) {
+                params.set('start_timestamp', startTimestamp);
+            }
+
+            if (endTimestamp) {
+                params.set('end_timestamp', endTimestamp);
+            }
+
+            return `https://nova-suits.com/api/device-statuses/${serialNumber}?${params.toString()}`;
+        }
+
+        // Fetch data from API
+        async function fetchDeviceData() {
+            const serialNumber = getDeviceSerialNumberFromUrl();
+            const apiUrl = getApiUrl(serialNumber);
+            
+            // Loading dialog is hidden - don't show it
+            // document.getElementById('loading').style.display = 'flex';
+            
+            try {
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    processData(data);
+                } else {
+                    throw new Error('No data received from API');
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showError('Error loading data: ' + error.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Process the data and extract coordinates
+        function processData(data) {
+            allCoordinates = [];
+            allCoordinatesData = [];
+            
+            // Store all coordinates with their data
+            data.data.forEach(item => {
+                if (item.gps_latitude && item.gps_longitude) {
+                    const lat = parseFloat(item.gps_latitude);
+                    const lng = parseFloat(item.gps_longitude);
+                    allCoordinates.push([lng, lat]);
+                    allCoordinatesData.push({
+                        coord: [lng, lat],
+                        data: item
+                    });
+                }
+            });
+
+            // Reverse to show chronological order (oldest to newest)
+            allCoordinates.reverse();
+            allCoordinatesData.reverse();
+            
+            // Get the current last coordinate (most recent)
+            const currentLastCoordinate = allCoordinates.length > 0 ? allCoordinates[allCoordinates.length - 1] : null;
+            
+            // Check if we have a previous coordinate to compare
+            if (previousLastCoordinate && currentLastCoordinate) {
+                const distance = calculateDistance(previousLastCoordinate, currentLastCoordinate);
+                
+                console.log(`Distance between coordinates: ${distance.toFixed(3)} km, Vehicle moving: ${isVehicleMoving}`);
+                
+                // Scenario 1: Start moving - distance > 1km
+                if (distance > 1.0 && !isVehicleMoving) {
+                    console.log('Scenario 1: Starting vehicle movement (distance > 1km)');
+                    startVehicleAnimation(previousLastCoordinate, currentLastCoordinate);
+                }
+                // Scenario 2: Continue moving - distance >= 100m (any distance when already moving)
+                else if (distance >= 0.1 && isVehicleMoving) {
+                    console.log('Scenario 2: Continuing vehicle movement (distance >= 100m)');
+                    // Use current vehicle position as start if available, otherwise use previous
+                    const startPos = currentVehiclePosition || previousLastCoordinate;
+                    continueVehicleAnimation(currentLastCoordinate, startPos);
+                }
+                // Scenario 3: Stop moving - distance < 100m
+                else if (distance < 0.1 && isVehicleMoving) {
+                    console.log('Scenario 3: Stopping vehicle movement (distance < 100m)');
+                    stopVehicleAnimation();
+                }
+            } else if (currentLastCoordinate) {
+                // First time - just set position and create vehicle marker
+                previousLastCoordinate = currentLastCoordinate;
+                currentVehiclePosition = currentLastCoordinate;
+            }
+            
+            // Update previous coordinate for next comparison (only if coordinate actually changed)
+            if (currentLastCoordinate) {
+                // Only update if it's different from previous
+                if (!previousLastCoordinate || 
+                    Math.abs(currentLastCoordinate[0] - previousLastCoordinate[0]) > 0.0001 ||
+                    Math.abs(currentLastCoordinate[1] - previousLastCoordinate[1]) > 0.0001) {
+                    previousLastCoordinate = currentLastCoordinate;
+                }
+            }
+            
+            // Set initial coordinates to all coordinates
+            coordinates = [...allCoordinates];
+
+            // Update info panel
+            if (data.data.length > 0) {
+                const firstItem = data.data[0];
+                document.getElementById('deviceId').textContent = firstItem.device_id || '-';
+                document.getElementById('totalPoints').textContent = allCoordinates.length;
+                document.getElementById('status').textContent = firstItem.status || '-';
+                document.getElementById('infoPanel').style.display = 'block';
+                document.getElementById('trackingPanel').style.display = 'block';
+            }
+
+            // Wait for map to load before adding markers
+            map.on('load', () => {
+                addMarkers();
+                addRoute();
+                updateRealtimeVehicleMarker();
+                focusOnLastCoordinate(); // Focus on last coordinate instead of fitting all
+                setupMapClickHandlers();
+                document.getElementById('loading').style.display = 'none';
+            });
+
+            // If map is already loaded
+            if (map.loaded()) {
+                addMarkers();
+                addRoute();
+                updateRealtimeVehicleMarker();
+                focusOnLastCoordinate(); // Focus on last coordinate instead of fitting all
+                setupMapClickHandlers();
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Add markers to the map
+        function addMarkers() {
+            // Clear existing markers (but keep source/destination markers and realtime vehicle marker)
+            markers.forEach(marker => marker.remove());
+            markers = [];
+
+            coordinates.forEach((coord, index) => {
+                // Skip if this is source or destination (they have special markers)
+                if (isTracking && sourceCoord && 
+                    Math.abs(coord[0] - sourceCoord[0]) < 0.0001 && 
+                    Math.abs(coord[1] - sourceCoord[1]) < 0.0001) {
+                    return;
+                }
+                if (isTracking && destinationCoord && 
+                    Math.abs(coord[0] - destinationCoord[0]) < 0.0001 && 
+                    Math.abs(coord[1] - destinationCoord[1]) < 0.0001) {
+                    return;
+                }
+                
+                // Skip the last coordinate if we have a realtime vehicle marker (it will be shown as the moving vehicle)
+                const isLastCoordinate = index === coordinates.length - 1;
+                if (isLastCoordinate && realtimeVehicleMarker) {
+                    return;
+                }
+
+                const el = document.createElement('div');
+                el.className = 'marker';
+                el.style.width = '12px';
+                el.style.height = '12px';
+                el.style.borderRadius = '50%';
+                
+                // Color coding: green for start, red for end, blue for others
+                if (!isTracking) {
+                    el.style.backgroundColor = index === 0 ? '#27ae60' : (isLastCoordinate ? '#e74c3c' : '#3498db');
+                } else {
+                    el.style.backgroundColor = '#3498db';
+                }
+                
+                el.style.border = '2px solid white';
+                el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+                el.style.cursor = 'pointer';
+
+                const marker = new mapboxgl.Marker(el)
+                    .setLngLat(coord)
+                    .addTo(map);
+
+                // Add click handler to marker
+                el.addEventListener('click', () => {
+                    if (trackingMode === 'source') {
+                        setSource(coord);
+                    } else if (trackingMode === 'destination') {
+                        setDestination(coord);
+                    }
+                });
+
+                markers.push(marker);
+            });
+        }
+        
+        // Update or create realtime vehicle marker
+        function updateRealtimeVehicleMarker() {
+            if (coordinates.length === 0) return;
+            
+            const lastCoord = coordinates[coordinates.length - 1];
+            
+            if (!realtimeVehicleMarker) {
+                // Create vehicle marker (red, larger)
+                const el = document.createElement('div');
+                el.innerHTML = '🚗';
+                el.style.fontSize = '24px';
+                el.style.cursor = 'pointer';
+                el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                
+                realtimeVehicleMarker = new mapboxgl.Marker(el)
+                    .setLngLat(lastCoord)
+                    .addTo(map);
+                
+                currentVehiclePosition = lastCoord;
+            } else {
+                // If not animating, just update position
+                if (!isVehicleMoving) {
+                    realtimeVehicleMarker.setLngLat(lastCoord);
+                    currentVehiclePosition = lastCoord;
+                }
+            }
+        }
+        
+        // Start vehicle animation
+        function startVehicleAnimation(fromCoord, toCoord) {
+            if (vehicleAnimationInterval) {
+                clearInterval(vehicleAnimationInterval);
+            }
+            
+            isVehicleMoving = true;
+            currentVehiclePosition = fromCoord;
+            targetVehiclePosition = toCoord;
+            animationStartTime = Date.now();
+            
+            // Create vehicle marker if it doesn't exist
+            if (!realtimeVehicleMarker) {
+                const el = document.createElement('div');
+                el.innerHTML = '🚗';
+                el.style.fontSize = '24px';
+                el.style.cursor = 'pointer';
+                el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                el.style.transition = 'transform 0.1s ease-out';
+                
+                realtimeVehicleMarker = new mapboxgl.Marker(el)
+                    .setLngLat(fromCoord)
+                    .addTo(map);
+            } else {
+                // Update marker position to start
+                realtimeVehicleMarker.setLngLat(fromCoord);
+            }
+            
+            // Start animation
+            animateVehicle();
+        }
+        
+        // Continue vehicle animation to new target
+        function continueVehicleAnimation(newTargetCoord, fromCoord = null) {
+            if (!isVehicleMoving) {
+                const startPos = fromCoord || currentVehiclePosition || previousLastCoordinate;
+                startVehicleAnimation(startPos, newTargetCoord);
+                return;
+            }
+            
+            // Use current vehicle position as start (where it currently is in animation)
+            // If fromCoord is provided, use it, otherwise use currentVehiclePosition
+            const startPos = fromCoord || currentVehiclePosition || previousLastCoordinate;
+            currentVehiclePosition = startPos;
+            
+            // Update target and restart animation from current position
+            targetVehiclePosition = newTargetCoord;
+            animationStartTime = Date.now();
+            
+            // Restart animation with new target
+            if (vehicleAnimationInterval) {
+                clearInterval(vehicleAnimationInterval);
+            }
+            animateVehicle();
+        }
+        
+        // Stop vehicle animation
+        function stopVehicleAnimation() {
+            isVehicleMoving = false;
+            if (vehicleAnimationInterval) {
+                clearInterval(vehicleAnimationInterval);
+                vehicleAnimationInterval = null;
+            }
+            
+            // Ensure vehicle is at final position
+            if (realtimeVehicleMarker && targetVehiclePosition) {
+                realtimeVehicleMarker.setLngLat(targetVehiclePosition);
+                currentVehiclePosition = targetVehiclePosition;
+            }
+        }
+        
+        // Animate vehicle smoothly from current to target position
+        function animateVehicle() {
+            if (!isVehicleMoving || !realtimeVehicleMarker || !targetVehiclePosition) return;
+            
+            if (vehicleAnimationInterval) {
+                clearInterval(vehicleAnimationInterval);
+            }
+            
+            // Use currentVehiclePosition as start, or fallback to previousLastCoordinate
+            const startPos = currentVehiclePosition || previousLastCoordinate;
+            if (!startPos || !targetVehiclePosition) {
+                console.error('Cannot animate: missing start or target position');
+                return;
+            }
+            
+            let lastMapUpdateTime = Date.now();
+            
+            vehicleAnimationInterval = setInterval(() => {
+                if (!isVehicleMoving || !targetVehiclePosition || !realtimeVehicleMarker) {
+                    clearInterval(vehicleAnimationInterval);
+                    vehicleAnimationInterval = null;
+                    return;
+                }
+                
+                const elapsed = Date.now() - animationStartTime;
+                const progress = Math.min(elapsed / animationDuration, 1); // 0 to 1
+                
+                // Use easing function for smooth animation
+                const easedProgress = easeInOutCubic(progress);
+                
+                // Interpolate position from startPos to targetVehiclePosition
+                const currentLat = startPos[1] + (targetVehiclePosition[1] - startPos[1]) * easedProgress;
+                const currentLng = startPos[0] + (targetVehiclePosition[0] - startPos[0]) * easedProgress;
+                const currentPos = [currentLng, currentLat];
+                
+                realtimeVehicleMarker.setLngLat(currentPos);
+                currentVehiclePosition = currentPos;
+                
+                // Update map to follow vehicle (less frequently for performance)
+                const now = Date.now();
+                if (now - lastMapUpdateTime > 200) { // Update every 200ms
+                    map.flyTo({
+                        center: currentPos,
+                        zoom: 15,
+                        pitch: is3DView ? currentPitch : 0,
+                        bearing: is3DView ? currentBearing : 0,
+                        speed: 0.3
+                    });
+                    lastMapUpdateTime = now;
+                }
+                
+                // If animation complete, set final position
+                if (progress >= 1) {
+                    currentVehiclePosition = targetVehiclePosition;
+                    realtimeVehicleMarker.setLngLat(targetVehiclePosition);
+                    // Keep animation running - it will be updated when new data arrives
+                    // The next data fetch will determine if we continue or stop
+                }
+            }, 50); // Update every 50ms for smooth animation
+        }
+        
+        // Easing function for smooth animation
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        // Add route line to the map
+        function addRoute() {
+            if (coordinates.length < 2) return;
+
+            // Remove existing route source if it exists
+            if (map.getSource('route')) {
+                if (map.getLayer('route-outline')) {
+                    map.removeLayer('route-outline');
+                }
+                if (map.getLayer('route')) {
+                    map.removeLayer('route');
+                }
+                map.removeSource('route');
+            }
+
+            // Add route source
+            map.addSource('route', {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: coordinates
+                    }
+                }
+            });
+
+            // Add route outline for depth (Mapbox style)
+            map.addLayer({
+                id: 'route-outline',
+                type: 'line',
+                source: 'route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#1a1a1a',
+                    'line-width': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        8, 6,
+                        12, 8,
+                        16, 10
+                    ],
+                    'line-opacity': 0.3
+                }
+            });
+
+            // Add main route layer with elegant styling
+            map.addLayer({
+                id: 'route',
+                type: 'line',
+                source: 'route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#4285f4', // Mapbox blue
+                    'line-width': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        8, 3,
+                        12, 4,
+                        16, 5
+                    ],
+                    'line-opacity': 0.8,
+                    'line-blur': 0.3
+                }
+            });
+
+            routeSource = map.getSource('route');
+        }
+
+        // Focus on the last (most recent) coordinate
+        function focusOnLastCoordinate() {
+            if (coordinates.length === 0) return;
+
+            // Get the last coordinate (most recent)
+            const lastCoord = coordinates[coordinates.length - 1];
+            
+            // Fly to the last coordinate with appropriate zoom
+            map.flyTo({
+                center: lastCoord,
+                zoom: 15, // Good zoom level for viewing current location
+                pitch: is3DView ? currentPitch : 0,
+                bearing: is3DView ? currentBearing : 0,
+                duration: 1000 // Smooth animation
+            });
+        }
+
+        // Fit map to show all coordinates (used by "Fit to Route" button)
+        function fitMapToBounds() {
+            if (coordinates.length === 0) return;
+
+            const bounds = new mapboxgl.LngLatBounds();
+            coordinates.forEach(coord => bounds.extend(coord));
+            
+            // Include source and destination markers if tracking
+            if (isTracking) {
+                if (sourceCoord) bounds.extend(sourceCoord);
+                if (destinationCoord) bounds.extend(destinationCoord);
+            }
+            
+            map.fitBounds(bounds, {
+                padding: 50,
+                maxZoom: 15,
+                pitch: is3DView ? currentPitch : 0,
+                bearing: is3DView ? currentBearing : 0
+            });
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Toggle route visibility
+        document.getElementById('showRoute').addEventListener('click', () => {
+            showRoute = true;
+            if (routeSource) {
+                map.setLayoutProperty('route', 'visibility', 'visible');
+            } else {
+                addRoute();
+            }
+            document.getElementById('showRoute').classList.add('active');
+            document.getElementById('showMarkers').classList.remove('active');
+        });
+
+        // Toggle markers visibility
+        document.getElementById('showMarkers').addEventListener('click', () => {
+            showRoute = false;
+            if (routeSource) {
+                map.setLayoutProperty('route', 'visibility', 'none');
+            }
+            document.getElementById('showMarkers').classList.add('active');
+            document.getElementById('showRoute').classList.remove('active');
+        });
+
+        // Fit to bounds button
+        document.getElementById('fitBounds').addEventListener('click', () => {
+            fitMapToBounds();
+        });
+
+        // Add test point button - generates a new coordinate to test vehicle movement
+        document.getElementById('addTestPoint').addEventListener('click', () => {
+            addTestPoint();
+        });
+
+        // Setup map click handlers for source/destination selection
+        function setupMapClickHandlers() {
+            map.on('click', (e) => {
+                if (trackingMode === 'source' || trackingMode === 'destination') {
+                    const clickedCoord = [e.lngLat.lng, e.lngLat.lat];
+                    const nearestCoord = findNearestCoordinate(clickedCoord);
+                    
+                    if (trackingMode === 'source') {
+                        setSource(nearestCoord);
+                    } else {
+                        setDestination(nearestCoord);
+                    }
+                }
+            });
+        }
+
+        // Find nearest coordinate from all coordinates
+        function findNearestCoordinate(clickedCoord) {
+            let nearest = allCoordinates[0];
+            let minDistance = Infinity;
+
+            allCoordinates.forEach(coord => {
+                const distance = calculateDistance(clickedCoord, coord);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = coord;
+                }
+            });
+
+            return nearest;
+        }
+
+        // Calculate distance between two coordinates (Haversine formula)
+        function calculateDistance(coord1, coord2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (coord2[1] - coord1[1]) * Math.PI / 180;
+            const dLon = (coord2[0] - coord1[0]) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(coord1[1] * Math.PI / 180) * Math.cos(coord2[1] * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Generate a new coordinate offset from a given coordinate by a certain distance (in km)
+        function generateOffsetCoordinate(baseCoord, distanceKm, bearingDegrees = 0) {
+            const R = 6371; // Earth's radius in km
+            const lat1 = baseCoord[1] * Math.PI / 180;
+            const lon1 = baseCoord[0] * Math.PI / 180;
+            const bearing = bearingDegrees * Math.PI / 180;
+            
+            const lat2 = Math.asin(
+                Math.sin(lat1) * Math.cos(distanceKm / R) +
+                Math.cos(lat1) * Math.sin(distanceKm / R) * Math.cos(bearing)
+            );
+            
+            const lon2 = lon1 + Math.atan2(
+                Math.sin(bearing) * Math.sin(distanceKm / R) * Math.cos(lat1),
+                Math.cos(distanceKm / R) - Math.sin(lat1) * Math.sin(lat2)
+            );
+            
+            return [lon2 * 180 / Math.PI, lat2 * 180 / Math.PI];
+        }
+
+        // Call Gemini AI to predict next coordinate based on previous coordinates
+        async function predictNextCoordinateWithGemini(lastCoordinates) {
+            const GEMINI_API_KEY = 'AIzaSyBZknLu3M5H49Mfa8ddxrathiWXhmQIgwU';
+            // Try different model names - gemini-1.5-flash, gemini-1.5-pro, or gemini-pro
+            const models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+            let lastError = null;
+            
+            for (const model of models) {
+                try {
+                    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+                    
+                    // Prepare coordinate history (last 5 coordinates for pattern analysis)
+                // Prepare coordinate history (last 5 coordinates for pattern analysis)
+                const recentCoords = lastCoordinates.slice(-5);
+                const coordHistory = recentCoords.map((coord, index) => 
+                    `Point ${index + 1}: [${coord[0].toFixed(6)}, ${coord[1].toFixed(6)}]`
+                ).join('\n');
+                
+                // Calculate movement pattern
+                let movementPattern = '';
+                if (recentCoords.length >= 2) {
+                    const distances = [];
+                    const bearings = [];
+                    for (let i = 1; i < recentCoords.length; i++) {
+                        const dist = calculateDistance(recentCoords[i-1], recentCoords[i]);
+                        distances.push(dist);
+                        
+                        // Calculate bearing
+                        const lat1 = recentCoords[i-1][1] * Math.PI / 180;
+                        const lat2 = recentCoords[i][1] * Math.PI / 180;
+                        const dLon = (recentCoords[i][0] - recentCoords[i-1][0]) * Math.PI / 180;
+                        const y = Math.sin(dLon) * Math.cos(lat2);
+                        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+                        const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+                        bearings.push(bearing);
+                    }
+                    
+                    const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
+                    const avgBearing = bearings.reduce((a, b) => a + b, 0) / bearings.length;
+                    movementPattern = `Average distance: ${avgDistance.toFixed(3)} km, Average bearing: ${avgBearing.toFixed(1)}°`;
+                }
+                
+                const prompt = `You are a GPS coordinate prediction system for vehicle tracking. Based on the GPS coordinate history below, predict the next realistic coordinate that a vehicle would reach.
+
+Coordinate History (most recent last):
+${coordHistory}
+
+${movementPattern ? `Observed Movement Pattern: ${movementPattern}` : 'No clear pattern yet (only one point).'}
+
+Current last coordinate: Longitude ${recentCoords[recentCoords.length - 1][0].toFixed(6)}, Latitude ${recentCoords[recentCoords.length - 1][1].toFixed(6)}
+
+Requirements:
+1. Analyze the movement pattern and direction from the coordinate history
+2. Predict a realistic next GPS coordinate that continues the trajectory
+3. Maintain smooth movement (avoid sudden direction changes)
+4. Use reasonable distance based on the pattern (typically 0.5-2 km for vehicles)
+5. Continue in the same general direction if a pattern exists
+
+IMPORTANT: Respond with ONLY a valid JSON object in this exact format:
+{"longitude": <number>, "latitude": <number>}
+
+Example: {"longitude": -122.4194, "latitude": 37.7749}
+
+Do not include any text, explanation, or markdown formatting. Only the JSON object.`;
+
+                    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: prompt
+                                }]
+                            }]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.log(`Model ${model} failed with status ${response.status}:`, errorText);
+                        lastError = new Error(`Gemini API error: ${response.status} - ${errorText}`);
+                        continue; // Try next model
+                    }
+
+                    const data = await response.json();
+                
+                    // Extract the predicted coordinate from Gemini's response
+                    let predictedText = '';
+                    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                        predictedText = data.candidates[0].content.parts[0].text;
+                    } else if (data.candidates && data.candidates[0] && data.candidates[0].text) {
+                        predictedText = data.candidates[0].text;
+                    }
+                    
+                    console.log(`Gemini ${model} response text:`, predictedText);
+                    
+                    // Try to parse JSON from the response
+                    let predictedCoord = null;
+                    try {
+                        // Extract JSON from the response (might have markdown code blocks)
+                        const jsonMatch = predictedText.match(/\{[\s\S]*?\}/);
+                        if (jsonMatch) {
+                            const parsed = JSON.parse(jsonMatch[0]);
+                            if (parsed.longitude !== undefined && parsed.latitude !== undefined) {
+                                predictedCoord = [parsed.longitude, parsed.latitude];
+                            } else if (parsed.lng !== undefined && parsed.lat !== undefined) {
+                                predictedCoord = [parsed.lng, parsed.lat];
+                            }
+                        } else {
+                            // Try to extract coordinates from text format like "[lng, lat]" or "lng, lat"
+                            const coordMatch = predictedText.match(/\[?\s*([-+]?\d+\.?\d*)\s*,\s*([-+]?\d+\.?\d*)\s*\]?/);
+                            if (coordMatch) {
+                                predictedCoord = [parseFloat(coordMatch[1]), parseFloat(coordMatch[2])];
+                            }
+                        }
+                    } catch (parseError) {
+                        console.error('Failed to parse Gemini response:', parseError, 'Response:', predictedText);
+                    }
+                    
+                    if (predictedCoord) {
+                        console.log(`Successfully parsed Gemini ${model} prediction:`, predictedCoord);
+                        return predictedCoord; // Success! Return the coordinate
+                    } else {
+                        console.warn(`Could not parse coordinate from Gemini ${model} response:`, predictedText);
+                        lastError = new Error('Could not parse coordinate from response');
+                        continue; // Try next model
+                    }
+                } catch (error) {
+                    console.error(`Error calling Gemini API with model ${model}:`, error);
+                    lastError = error;
+                    continue; // Try next model
+                }
+            }
+            
+            // If we get here, all models failed
+            console.error('All Gemini models failed. Last error:', lastError);
+            return null;
+        }
+
+        // Add a test point to simulate vehicle movement
+        async function addTestPoint() {
+            if (allCoordinates.length === 0) {
+                alert('No coordinates available. Please load device data first.');
+                return;
+            }
+
+            // Get the current last coordinate
+            const currentLastCoord = allCoordinates[allCoordinates.length - 1];
+            
+            // Show loading indicator
+            const loadingMsg = document.createElement('div');
+            loadingMsg.id = 'gemini-loading';
+            loadingMsg.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 10000; text-align: center;';
+            loadingMsg.innerHTML = '<div style="margin-bottom: 10px;">🤖 Asking Gemini AI to predict next coordinate...</div><div class="spinner"></div>';
+            document.body.appendChild(loadingMsg);
+            
+            let newCoord = null;
+            
+            try {
+                // Call Gemini to predict next coordinate
+                const predictedCoord = await predictNextCoordinateWithGemini(allCoordinates);
+                
+                if (predictedCoord && predictedCoord.length === 2) {
+                    newCoord = predictedCoord;
+                    console.log(`Gemini predicted coordinate: ${newCoord[0].toFixed(6)}, ${newCoord[1].toFixed(6)}`);
+                } else {
+                    // Fallback: Ask user for distance if Gemini fails
+                    const distanceInput = prompt(
+                        'Gemini AI prediction failed. Enter distance in km for test point:\n' +
+                        '- > 1km: Will start/continue movement\n' +
+                        '- >= 0.1km (100m) and <= 1km: Will continue movement if already moving\n' +
+                        '- < 0.1km (100m): Will stop movement\n\n' +
+                        'Default: 1.5 (km)',
+                        '1.5'
+                    );
+                    
+                    if (distanceInput === null) {
+                        document.body.removeChild(loadingMsg);
+                        return; // User cancelled
+                    }
+                    
+                    const testDistanceKm = parseFloat(distanceInput);
+                    if (isNaN(testDistanceKm) || testDistanceKm < 0) {
+                        alert('Invalid distance. Please enter a positive number.');
+                        document.body.removeChild(loadingMsg);
+                        return;
+                    }
+                    
+                    // Generate a random bearing (0-360 degrees) for variety
+                    const randomBearing = Math.random() * 360;
+                    
+                    // Generate new coordinate offset by specified distance
+                    newCoord = generateOffsetCoordinate(currentLastCoord, testDistanceKm, randomBearing);
+                }
+            } catch (error) {
+                console.error('Error in addTestPoint:', error);
+                // Fallback to manual input
+                const distanceInput = prompt(
+                    'Error occurred. Enter distance in km for test point:\n' +
+                    'Default: 1.5 (km)',
+                    '1.5'
+                );
+                
+                if (distanceInput === null) {
+                    document.body.removeChild(loadingMsg);
+                    return;
+                }
+                
+                const testDistanceKm = parseFloat(distanceInput);
+                if (!isNaN(testDistanceKm) && testDistanceKm >= 0) {
+                    const randomBearing = Math.random() * 360;
+                    newCoord = generateOffsetCoordinate(currentLastCoord, testDistanceKm, randomBearing);
+                }
+            } finally {
+                // Remove loading indicator
+                if (document.getElementById('gemini-loading')) {
+                    document.body.removeChild(loadingMsg);
+                }
+            }
+            
+            if (!newCoord) {
+                return; // No coordinate generated
+            }
+            
+            
+            console.log(`Adding test point: ${newCoord[0].toFixed(6)}, ${newCoord[1].toFixed(6)}`);
+            console.log(`Distance from previous: ${calculateDistance(currentLastCoord, newCoord).toFixed(3)} km`);
+            
+            // Add the new coordinate to arrays
+            allCoordinates.push(newCoord);
+            allCoordinatesData.push({
+                coord: newCoord,
+                data: {
+                    gps_latitude: newCoord[1],
+                    gps_longitude: newCoord[0],
+                    timestamp: new Date().toISOString(),
+                    device_id: document.getElementById('deviceId')?.textContent || '-',
+                    status: 'test'
+                }
+            });
+            
+            // Update coordinates array
+            coordinates = [...allCoordinates];
+            
+            // Simulate the processData logic for animation check
+            const currentLastCoordinate = newCoord;
+            
+            if (previousLastCoordinate && currentLastCoordinate) {
+                const distance = calculateDistance(previousLastCoordinate, currentLastCoordinate);
+                
+                console.log(`Test point - Distance: ${distance.toFixed(3)} km, Vehicle moving: ${isVehicleMoving}`);
+                
+                // Scenario 1: Start moving - distance > 1km
+                if (distance > 1.0 && !isVehicleMoving) {
+                    console.log('Test: Scenario 1 - Starting vehicle movement (distance > 1km)');
+                    startVehicleAnimation(previousLastCoordinate, currentLastCoordinate);
+                }
+                // Scenario 2: Continue moving - distance >= 100m
+                else if (distance >= 0.1 && isVehicleMoving) {
+                    console.log('Test: Scenario 2 - Continuing vehicle movement (distance >= 100m)');
+                    const startPos = currentVehiclePosition || previousLastCoordinate;
+                    continueVehicleAnimation(currentLastCoordinate, startPos);
+                }
+                // Scenario 3: Stop moving - distance < 100m
+                else if (distance < 0.1 && isVehicleMoving) {
+                    console.log('Test: Scenario 3 - Stopping vehicle movement (distance < 100m)');
+                    stopVehicleAnimation();
+                }
+            } else if (currentLastCoordinate) {
+                previousLastCoordinate = currentLastCoordinate;
+                currentVehiclePosition = currentLastCoordinate;
+            }
+            
+            // Update previous coordinate
+            if (currentLastCoordinate) {
+                previousLastCoordinate = currentLastCoordinate;
+            }
+            
+            // Update markers and route
+            addMarkers();
+            addRoute();
+            updateRealtimeVehicleMarker();
+            
+            // Update info panel
+            document.getElementById('totalPoints').textContent = allCoordinates.length;
+            
+            // Focus on new coordinate
+            focusOnLastCoordinate();
+        }
+
+        // Reverse geocoding to get place name from coordinates
+        async function reverseGeocode(coord, callback) {
+            try {
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${coord[0]},${coord[1]}.json?access_token=${mapboxgl.accessToken}&limit=1`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.features && data.features.length > 0) {
+                    callback(data.features[0].place_name);
+                } else {
+                    callback(null);
+                }
+            } catch (error) {
+                console.error('Reverse geocoding error:', error);
+                callback(null);
+            }
+        }
+
+        // Set source coordinate
+        function setSource(coord) {
+            sourceCoord = coord;
+            document.getElementById('sourceInput').value = `${coord[1].toFixed(6)}, ${coord[0].toFixed(6)}`;
+            
+            // Reverse geocode to get place name
+            reverseGeocode(coord, (placeName) => {
+                if (placeName) {
+                    document.getElementById('sourceSearch').value = placeName;
+                }
+            });
+            
+            // Hide selection mode if both are set
+            if (sourceCoord && destinationCoord) {
+                document.getElementById('selectionMode').style.display = 'none';
+            }
+            
+            // Add or update source marker
+            if (sourceMarker) {
+                sourceMarker.setLngLat(coord);
+            } else {
+                const el = document.createElement('div');
+                el.style.width = '20px';
+                el.style.height = '20px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = '#27ae60';
+                el.style.border = '3px solid white';
+                el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+                el.style.cursor = 'pointer';
+                
+                sourceMarker = new mapboxgl.Marker(el)
+                    .setLngLat(coord)
+                    .addTo(map);
+            }
+        }
+
+        // Set destination coordinate
+        function setDestination(coord) {
+            destinationCoord = coord;
+            document.getElementById('destinationInput').value = `${coord[1].toFixed(6)}, ${coord[0].toFixed(6)}`;
+            
+            // Reverse geocode to get place name
+            reverseGeocode(coord, (placeName) => {
+                if (placeName) {
+                    document.getElementById('destinationSearch').value = placeName;
+                }
+            });
+            
+            // Hide selection mode if both are set
+            if (sourceCoord && destinationCoord) {
+                document.getElementById('selectionMode').style.display = 'none';
+            }
+            
+            // Add or update destination marker
+            if (destinationMarker) {
+                destinationMarker.setLngLat(coord);
+            } else {
+                const el = document.createElement('div');
+                el.style.width = '20px';
+                el.style.height = '20px';
+                el.style.borderRadius = '50%';
+                el.style.backgroundColor = '#e74c3c';
+                el.style.border = '3px solid white';
+                el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+                el.style.cursor = 'pointer';
+                
+                destinationMarker = new mapboxgl.Marker(el)
+                    .setLngLat(coord)
+                    .addTo(map);
+            }
+        }
+
+        // Filter coordinates between source and destination
+        function filterCoordinatesBetweenSourceAndDestination() {
+            if (!sourceCoord || !destinationCoord) {
+                return;
+            }
+
+            // Find indices of source and destination in allCoordinates
+            let sourceIndex = -1;
+            let destIndex = -1;
+            let minSourceDist = Infinity;
+            let minDestDist = Infinity;
+
+            allCoordinates.forEach((coord, index) => {
+                const sourceDist = calculateDistance(sourceCoord, coord);
+                const destDist = calculateDistance(destinationCoord, coord);
+                
+                if (sourceDist < minSourceDist) {
+                    minSourceDist = sourceDist;
+                    sourceIndex = index;
+                }
+                
+                if (destDist < minDestDist) {
+                    minDestDist = destDist;
+                    destIndex = index;
+                }
+            });
+
+            // Get coordinates between source and destination
+            if (sourceIndex !== -1 && destIndex !== -1) {
+                const startIndex = Math.min(sourceIndex, destIndex);
+                const endIndex = Math.max(sourceIndex, destIndex);
+                coordinates = allCoordinates.slice(startIndex, endIndex + 1);
+                
+                // Calculate total distance
+                let totalDistance = 0;
+                for (let i = 0; i < coordinates.length - 1; i++) {
+                    totalDistance += calculateDistance(coordinates[i], coordinates[i + 1]);
+                }
+
+                // Update tracking info
+                document.getElementById('routePoints').textContent = coordinates.length;
+                document.getElementById('routeDistance').textContent = totalDistance.toFixed(2) + ' km';
+                
+                // Estimate duration (assuming average speed of 120 km/h)
+                const durationHours = totalDistance / 120;
+                const hours = Math.floor(durationHours);
+                const minutes = Math.floor((durationHours - hours) * 60);
+                document.getElementById('routeDuration').textContent = 
+                    hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+                
+                document.getElementById('trackingInfo').style.display = 'block';
+            }
+        }
+
+        // Track route button handler
+        document.getElementById('trackRoute').addEventListener('click', () => {
+            if (!sourceCoord || !destinationCoord) {
+                showError('Please set both source and destination');
+                return;
+            }
+
+            isTracking = true;
+            document.getElementById('selectionMode').style.display = 'none';
+            filterCoordinatesBetweenSourceAndDestination();
+            addMarkers();
+            addRoute();
+            fitMapToBounds();
+            
+            // If drive mode is active, update navigation route
+            if (isDriveMode) {
+                getNavigationRoute(sourceCoord, destinationCoord);
+            }
+        });
+
+        // Clear tracking button handler
+        document.getElementById('clearTracking').addEventListener('click', () => {
+            isTracking = false;
+            sourceCoord = null;
+            destinationCoord = null;
+            coordinates = [...allCoordinates];
+            
+            if (sourceMarker) {
+                sourceMarker.remove();
+                sourceMarker = null;
+            }
+            if (destinationMarker) {
+                destinationMarker.remove();
+                destinationMarker = null;
+            }
+            
+            document.getElementById('sourceInput').value = '';
+            document.getElementById('destinationInput').value = '';
+            document.getElementById('sourceSearch').value = '';
+            document.getElementById('destinationSearch').value = '';
+            document.getElementById('sourceSearchResults').classList.remove('active');
+            document.getElementById('destinationSearchResults').classList.remove('active');
+            document.getElementById('trackingInfo').style.display = 'none';
+            document.getElementById('selectionMode').style.display = 'none';
+            
+            // Reset mode buttons
+            trackingMode = 'source';
+            document.getElementById('setSource').classList.add('active');
+            document.getElementById('setDestination').classList.remove('active');
+            
+            addMarkers();
+            addRoute();
+            focusOnLastCoordinate(); // Focus on last coordinate when clearing tracking
+        });
+
+        // Set source mode
+        document.getElementById('setSource').addEventListener('click', () => {
+            trackingMode = 'source';
+            document.getElementById('setSource').classList.add('active');
+            document.getElementById('setDestination').classList.remove('active');
+            document.getElementById('selectionType').textContent = 'source';
+            document.getElementById('selectionMode').style.display = 'block';
+            
+            // Make markers clickable
+            markers.forEach(marker => {
+                marker.getElement().classList.add('clickable');
+            });
+        });
+
+        // Set destination mode
+        document.getElementById('setDestination').addEventListener('click', () => {
+            trackingMode = 'destination';
+            document.getElementById('setDestination').classList.add('active');
+            document.getElementById('setSource').classList.remove('active');
+            document.getElementById('selectionType').textContent = 'destination';
+            document.getElementById('selectionMode').style.display = 'block';
+            
+            // Make markers clickable
+            markers.forEach(marker => {
+                marker.getElement().classList.add('clickable');
+            });
+        });
+
+        // Geocoding search function
+        async function searchPlace(query, resultsContainer, onSelect) {
+            if (!query || query.length < 2) {
+                resultsContainer.classList.remove('active');
+                resultsContainer.innerHTML = '';
+                return;
+            }
+
+            try {
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=5`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.features && data.features.length > 0) {
+                    resultsContainer.innerHTML = '';
+                    data.features.forEach((feature) => {
+                        const item = document.createElement('div');
+                        item.className = 'search-result-item';
+                        item.innerHTML = `
+                            <div class="name">${feature.text}</div>
+                            <div class="address">${feature.place_name}</div>
+                        `;
+                        item.addEventListener('click', () => {
+                            const coord = feature.center; // [lng, lat]
+                            onSelect(coord);
+                            resultsContainer.classList.remove('active');
+                            resultsContainer.innerHTML = '';
+                        });
+                        resultsContainer.appendChild(item);
+                    });
+                    resultsContainer.classList.add('active');
+                } else {
+                    resultsContainer.classList.remove('active');
+                    resultsContainer.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                resultsContainer.classList.remove('active');
+            }
+        }
+
+        // Source search handler
+        let sourceSearchTimeout;
+        document.getElementById('sourceSearch').addEventListener('input', (e) => {
+            clearTimeout(sourceSearchTimeout);
+            const query = e.target.value.trim();
+            const resultsContainer = document.getElementById('sourceSearchResults');
+            
+            sourceSearchTimeout = setTimeout(() => {
+                searchPlace(query, resultsContainer, (coord) => {
+                    setSource(coord);
+                    // Keep the place name in the search field
+                });
+            }, 300); // Debounce search
+        });
+
+        // Destination search handler
+        let destinationSearchTimeout;
+        document.getElementById('destinationSearch').addEventListener('input', (e) => {
+            clearTimeout(destinationSearchTimeout);
+            const query = e.target.value.trim();
+            const resultsContainer = document.getElementById('destinationSearchResults');
+            
+            destinationSearchTimeout = setTimeout(() => {
+                searchPlace(query, resultsContainer, (coord) => {
+                    setDestination(coord);
+                    // Keep the place name in the search field
+                });
+            }, 300); // Debounce search
+        });
+
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-container')) {
+                document.getElementById('sourceSearchResults').classList.remove('active');
+                document.getElementById('destinationSearchResults').classList.remove('active');
+            }
+        });
+
+        // Manual coordinate input handlers
+        document.getElementById('sourceInput').addEventListener('change', (e) => {
+            const value = e.target.value.trim();
+            if (value) {
+                const parts = value.split(',');
+                if (parts.length === 2) {
+                    const lat = parseFloat(parts[0].trim());
+                    const lng = parseFloat(parts[1].trim());
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        setSource([lng, lat]);
+                    }
+                }
+            }
+        });
+
+        document.getElementById('destinationInput').addEventListener('change', (e) => {
+            const value = e.target.value.trim();
+            if (value) {
+                const parts = value.split(',');
+                if (parts.length === 2) {
+                    const lat = parseFloat(parts[0].trim());
+                    const lng = parseFloat(parts[1].trim());
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        setDestination([lng, lat]);
+                    }
+                }
+            }
+        });
+
+        // ========== DRIVE MODE / NAVIGATION FUNCTIONS ==========
+
+        // Toggle drive mode panel
+        document.getElementById('driveModeToggle').addEventListener('click', () => {
+            isDriveMode = !isDriveMode;
+            const panel = document.getElementById('driveModePanel');
+            if (isDriveMode) {
+                panel.classList.add('active');
+                // If source and destination are set, get navigation route
+                if (sourceCoord && destinationCoord) {
+                    const useActual = document.getElementById('useActualRoute').checked;
+                    getNavigationRoute(sourceCoord, destinationCoord, useActual);
+                } else {
+                    showError('Please set source and destination first');
+                    isDriveMode = false;
+                    panel.classList.remove('active');
+                }
+            } else {
+                panel.classList.remove('active');
+                stopNavigation();
+            }
+        });
+
+        // Update route when checkbox changes
+        document.getElementById('useActualRoute').addEventListener('change', (e) => {
+            if (isDriveMode && sourceCoord && destinationCoord) {
+                getNavigationRoute(sourceCoord, destinationCoord, e.target.checked);
+            }
+        });
+
+        // Get optimized route from Mapbox Directions API
+        async function getNavigationRoute(start, end, useActualRoute = false) {
+            try {
+                // If tracking is active and we want to use actual device route
+                if (useActualRoute && isTracking && coordinates.length > 0) {
+                    routeCoordinates = coordinates;
+                    
+                    // Create a simplified navigation route from actual coordinates
+                    navigationRoute = {
+                        distance: calculateRouteDistance(coordinates) * 1000, // meters
+                        duration: calculateRouteDistance(coordinates) / 120 * 3600, // seconds (assuming 120 km/h)
+                        geometry: {
+                            coordinates: coordinates
+                        }
+                    };
+                    
+                    // Generate simple instructions from actual route
+                    navigationInstructions = generateInstructionsFromCoordinates(coordinates);
+                    
+                    // Display route on map
+                    displayNavigationRoute(routeCoordinates);
+                    
+                    // Display instructions
+                    displayNavigationInstructions();
+                    
+                    // Update stats
+                    updateNavigationStats();
+                } else {
+                    // Get optimized route from Mapbox
+                    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&steps=true&overview=full&access_token=${mapboxgl.accessToken}`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                        navigationRoute = data.routes[0];
+                        routeCoordinates = navigationRoute.geometry.coordinates;
+                        navigationInstructions = parseNavigationInstructions(data.routes[0].legs[0].steps);
+                        
+                        // Display route on map
+                        displayNavigationRoute(routeCoordinates);
+                        
+                        // Display instructions
+                        displayNavigationInstructions();
+                        
+                        // Update stats
+                        updateNavigationStats();
+                    } else {
+                        throw new Error('Failed to get route');
+                    }
+                }
+            } catch (error) {
+                console.error('Error getting navigation route:', error);
+                showError('Failed to get navigation route: ' + error.message);
+            }
+        }
+
+        // Generate instructions from actual device coordinates
+        function generateInstructionsFromCoordinates(coords) {
+            const instructions = [];
+            const segmentLength = Math.ceil(coords.length / 10); // Create ~10 instructions
+            
+            for (let i = 0; i < coords.length; i += segmentLength) {
+                const segment = coords.slice(i, Math.min(i + segmentLength, coords.length));
+                const distance = calculateRouteDistance(segment);
+                const startCoord = segment[0];
+                const endCoord = segment[segment.length - 1];
+                
+                // Calculate bearing to determine direction
+                const bearing = calculateBearing(startCoord, endCoord);
+                let direction = 'Continue straight';
+                
+                if (bearing > 45 && bearing <= 135) {
+                    direction = 'Turn right';
+                } else if (bearing > 135 && bearing <= 225) {
+                    direction = 'Turn around';
+                } else if (bearing > 225 && bearing <= 315) {
+                    direction = 'Turn left';
+                }
+                
+                instructions.push({
+                    type: 'continue',
+                    modifier: 'straight',
+                    distance: distance,
+                    street: 'Route',
+                    location: endCoord,
+                    instruction: `${direction} for ${distance < 1 ? Math.round(distance * 1000) + 'm' : distance.toFixed(1) + 'km'}`
+                });
+            }
+            
+            // Add arrival instruction
+            instructions.push({
+                type: 'arrive',
+                modifier: '',
+                distance: 0,
+                street: 'Destination',
+                location: coords[coords.length - 1],
+                instruction: 'Arrive at destination'
+            });
+            
+            return instructions;
+        }
+
+        // Calculate bearing between two coordinates
+        function calculateBearing(coord1, coord2) {
+            const lat1 = coord1[1] * Math.PI / 180;
+            const lat2 = coord2[1] * Math.PI / 180;
+            const dLon = (coord2[0] - coord1[0]) * Math.PI / 180;
+            
+            const y = Math.sin(dLon) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            
+            const bearing = Math.atan2(y, x) * 180 / Math.PI;
+            return (bearing + 360) % 360;
+        }
+
+        // Parse navigation instructions from route steps
+        function parseNavigationInstructions(steps) {
+            const instructions = [];
+            steps.forEach((step, index) => {
+                const instruction = step.maneuver;
+                const distance = step.distance / 1000; // Convert to km
+                const street = step.name || 'Unnamed road';
+                const location = instruction.location || [instruction.coordinates[0], instruction.coordinates[1]];
+                
+                instructions.push({
+                    type: instruction.type,
+                    modifier: instruction.modifier,
+                    distance: distance,
+                    street: street,
+                    location: location,
+                    instruction: getInstructionText(instruction.type, instruction.modifier, distance, street)
+                });
+            });
+            return instructions;
+        }
+
+        // Get human-readable instruction text
+        function getInstructionText(type, modifier, distance, street) {
+            const distanceText = distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
+            
+            let action = '';
+            switch(type) {
+                case 'turn':
+                    switch(modifier) {
+                        case 'left': action = 'Turn left'; break;
+                        case 'right': action = 'Turn right'; break;
+                        case 'sharp left': action = 'Sharp left'; break;
+                        case 'sharp right': action = 'Sharp right'; break;
+                        case 'slight left': action = 'Slight left'; break;
+                        case 'slight right': action = 'Slight right'; break;
+                        default: action = 'Turn';
+                    }
+                    break;
+                case 'merge':
+                    action = 'Merge';
+                    break;
+                case 'depart':
+                    action = 'Start navigation';
+                    break;
+                case 'arrive':
+                    action = 'Arrive at destination';
+                    break;
+                case 'continue':
+                    action = 'Continue straight';
+                    break;
+                case 'roundabout':
+                    action = 'Enter roundabout';
+                    break;
+                default:
+                    action = 'Continue';
+            }
+            
+            return `${action} in ${distanceText}${street ? ' onto ' + street : ''}`;
+        }
+
+        // Display navigation route on map - Mapbox elegant style
+        function displayNavigationRoute(coords) {
+            // Remove existing navigation route
+            if (map.getSource('navigation-route')) {
+                map.removeLayer('navigation-route');
+                map.removeLayer('navigation-route-outline');
+                map.removeSource('navigation-route');
+            }
+
+            map.addSource('navigation-route', {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: coords
+                    }
+                }
+            });
+
+            // Add outline for depth effect (Mapbox style)
+            map.addLayer({
+                id: 'navigation-route-outline',
+                type: 'line',
+                source: 'navigation-route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#1a1a1a',
+                    'line-width': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        10, 8,
+                        15, 12,
+                        20, 16
+                    ],
+                    'line-opacity': 0.4
+                }
+            });
+
+            // Add main route line with elegant blue color
+            map.addLayer({
+                id: 'navigation-route',
+                type: 'line',
+                source: 'navigation-route',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#4285f4', // Mapbox blue
+                    'line-width': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        10, 4,
+                        15, 6,
+                        20, 8
+                    ],
+                    'line-opacity': 0.9,
+                    'line-blur': 0.5
+                }
+            });
+        }
+
+        // Display navigation instructions
+        function displayNavigationInstructions() {
+            const container = document.getElementById('navigationInstructions');
+            container.innerHTML = '';
+            
+            navigationInstructions.forEach((instruction, index) => {
+                const div = document.createElement('div');
+                div.className = 'navigation-instruction';
+                if (index === currentInstructionIndex) {
+                    div.classList.add('active');
+                }
+                
+                div.innerHTML = `
+                    <div class="distance">${instruction.distance < 1 ? Math.round(instruction.distance * 1000) + 'm' : instruction.distance.toFixed(1) + 'km'}</div>
+                    <div class="maneuver">${instruction.instruction}</div>
+                    <div class="street">${instruction.street}</div>
+                `;
+                
+                container.appendChild(div);
+            });
+        }
+
+        // Update navigation statistics
+        function updateNavigationStats() {
+            if (navigationRoute) {
+                const distance = navigationRoute.distance / 1000; // km
+                const duration = navigationRoute.duration / 60; // minutes
+                
+                document.getElementById('navDistance').textContent = distance.toFixed(1) + ' km';
+                document.getElementById('navTime').textContent = Math.round(duration) + ' min';
+            }
+        }
+
+        // Get position along route based on distance traveled
+        function getPositionAlongRoute(totalDistance, distanceTraveled, coords) {
+            if (distanceTraveled >= totalDistance) {
+                return coords[coords.length - 1];
+            }
+            
+            let accumulatedDistance = 0;
+            for (let i = 0; i < coords.length - 1; i++) {
+                const segmentDistance = calculateDistance(coords[i], coords[i + 1]) * 1000; // Convert to meters
+                
+                if (accumulatedDistance + segmentDistance >= distanceTraveled) {
+                    // Interpolate within this segment
+                    const remainingDistance = distanceTraveled - accumulatedDistance;
+                    const ratio = remainingDistance / segmentDistance;
+                    
+                    const lat = coords[i][1] + (coords[i + 1][1] - coords[i][1]) * ratio;
+                    const lng = coords[i][0] + (coords[i + 1][0] - coords[i][0]) * ratio;
+                    
+                    return [lng, lat];
+                }
+                
+                accumulatedDistance += segmentDistance;
+            }
+            
+            return coords[coords.length - 1];
+        }
+
+        // Calculate segment distances and times
+        function calculateSegmentData(coords) {
+            const segments = [];
+            for (let i = 0; i < coords.length - 1; i++) {
+                const distance = calculateDistance(coords[i], coords[i + 1]) * 1000; // Convert to meters
+                // Calculate time to travel this segment at 120 km/h
+                const speedMetersPerSecond = (NAVIGATION_SPEED * 1000) / 3600; // m/s
+                const timeSeconds = distance / speedMetersPerSecond; // seconds
+                const timeMilliseconds = timeSeconds * 1000; // milliseconds
+                
+                segments.push({
+                    from: coords[i],
+                    to: coords[i + 1],
+                    distance: distance, // meters
+                    time: timeMilliseconds, // milliseconds
+                    speed: speedMetersPerSecond * 3.6 // km/h for display
+                });
+            }
+            return segments;
+        }
+
+        // Start navigation
+        function startNavigation() {
+            if (!navigationRoute || routeCoordinates.length === 0) {
+                showError('No route available');
+                return;
+            }
+
+            // If resuming from pause
+            if (isPaused) {
+                isPaused = false;
+                const pauseDuration = Date.now() - pausedTime;
+                totalPausedDuration += pauseDuration;
+                navigationStartTime += pauseDuration;
+                // Adjust segment start time to account for pause
+                if (segmentStartTime) {
+                    segmentStartTime += pauseDuration;
+                }
+            } else {
+                // Starting fresh
+                isNavigating = true;
+                currentRouteIndex = 0;
+                currentPosition = 0;
+                distanceTraveled = 0;
+                navigationStartTime = Date.now();
+                totalPausedDuration = 0;
+                currentSegmentIndex = 0;
+                
+                // Create vehicle marker
+                if (!vehicleMarker) {
+                    const el = document.createElement('div');
+                    el.innerHTML = '🚗';
+                    el.style.fontSize = '30px';
+                    el.style.cursor = 'pointer';
+                    
+                    vehicleMarker = new mapboxgl.Marker(el)
+                        .setLngLat(routeCoordinates[0])
+                        .addTo(map);
+                }
+            }
+
+            // Show/hide buttons
+            document.getElementById('startNavigation').style.display = 'none';
+            document.getElementById('pauseNavigation').style.display = 'block';
+            document.getElementById('stopNavigation').style.display = 'block';
+
+            // Calculate segment data (distance and time for each segment)
+            navigationSegments = calculateSegmentData(routeCoordinates);
+            
+            // If resuming, keep current segment index, otherwise reset
+            const wasPaused = isPaused;
+            if (!wasPaused) {
+                currentSegmentIndex = 0;
+                distanceTraveled = 0;
+            }
+            
+            let lastUpdateTime = Date.now();
+
+            // Function to move to next segment
+            function moveToNextSegment() {
+                if (currentSegmentIndex >= navigationSegments.length) {
+                    // Reached destination
+                    const finalCoord = routeCoordinates[routeCoordinates.length - 1];
+                    vehicleMarker.setLngLat(finalCoord);
+                    map.flyTo({
+                        center: finalCoord,
+                        zoom: 16,
+                        pitch: is3DView ? currentPitch : 0,
+                        bearing: is3DView ? currentBearing : 0,
+                        speed: 0.5
+                    });
+                    stopNavigation();
+                    showError('Arrived at destination!');
+                    return;
+                }
+
+                const segment = navigationSegments[currentSegmentIndex];
+                segmentStartTime = Date.now();
+                currentRouteIndex = currentSegmentIndex;
+                
+                // Update vehicle position
+                vehicleMarker.setLngLat(segment.from);
+                
+                // Update distance traveled
+                if (currentSegmentIndex > 0) {
+                    distanceTraveled += navigationSegments[currentSegmentIndex - 1].distance;
+                }
+            }
+
+            // Start with current segment (or first if starting fresh)
+            if (wasPaused && segmentStartTime) {
+                // Resume from current position - adjust segment start time to account for pause duration
+                const pauseDuration = Date.now() - pausedTime;
+                segmentStartTime += pauseDuration;
+            } else {
+                moveToNextSegment();
+            }
+
+            // Animation function to smoothly move between points
+            function animateSegment() {
+                if (!isNavigating || isPaused) return;
+                
+                if (currentSegmentIndex >= navigationSegments.length) {
+                    return;
+                }
+
+                const segment = navigationSegments[currentSegmentIndex];
+                const elapsed = Date.now() - segmentStartTime;
+                const progress = Math.min(elapsed / segment.time, 1); // 0 to 1
+
+                // Interpolate position between segment start and end
+                const currentLat = segment.from[1] + (segment.to[1] - segment.from[1]) * progress;
+                const currentLng = segment.from[0] + (segment.to[0] - segment.from[0]) * progress;
+                const currentCoord = [currentLng, currentLat];
+
+                vehicleMarker.setLngLat(currentCoord);
+
+                // Calculate actual speed for this segment based on distance and time
+                // Speed = distance / time (converted to km/h)
+                const actualSpeed = (segment.distance / 1000) / (segment.time / 3600000); // km/h
+                document.getElementById('navSpeed').textContent = Math.round(actualSpeed) + ' km/h';
+
+                // Update map center to follow vehicle (less frequently for performance)
+                const now = Date.now();
+                if (now - lastUpdateTime > 200) { // Update every 200ms
+                    map.flyTo({
+                        center: currentCoord,
+                        zoom: 16,
+                        pitch: is3DView ? currentPitch : 0,
+                        bearing: is3DView ? currentBearing : 0,
+                        speed: 0.3
+                    });
+                    lastUpdateTime = now;
+                }
+
+                // Update current instruction
+                updateCurrentInstructionForPosition(currentCoord);
+
+                // If segment is complete, move to next segment
+                if (progress >= 1) {
+                    currentSegmentIndex++;
+                    moveToNextSegment();
+                }
+            }
+
+            // Start animation loop (update every 50ms for smooth movement)
+            navigationInterval = setInterval(animateSegment, 50);
+        }
+
+        // Update current instruction based on vehicle position
+        function updateCurrentInstruction() {
+            // Find which instruction we're closest to
+            navigationInstructions.forEach((instruction, index) => {
+                if (instruction.location && instruction.location.length === 2) {
+                    const instructionCoord = instruction.location;
+                    const currentCoord = routeCoordinates[currentRouteIndex];
+                    const distance = calculateDistance(currentCoord, instructionCoord);
+                    
+                    // If we're past this instruction and it's the next one
+                    if (distance < 0.2 && index >= currentInstructionIndex) { // Within 200m
+                        currentInstructionIndex = index;
+                        displayNavigationInstructions();
+                    }
+                }
+            });
+        }
+
+        // Update current instruction based on actual vehicle position
+        function updateCurrentInstructionForPosition(currentCoord) {
+            // Find which instruction we're closest to
+            navigationInstructions.forEach((instruction, index) => {
+                if (instruction.location && instruction.location.length === 2) {
+                    const instructionCoord = instruction.location;
+                    const distance = calculateDistance(currentCoord, instructionCoord);
+                    
+                    // If we're past this instruction and it's the next one
+                    if (distance < 0.2 && index >= currentInstructionIndex) { // Within 200m
+                        currentInstructionIndex = index;
+                        displayNavigationInstructions();
+                    }
+                }
+            });
+        }
+
+        // Calculate total distance of route segment
+        function calculateRouteDistance(coords) {
+            let total = 0;
+            for (let i = 0; i < coords.length - 1; i++) {
+                total += calculateDistance(coords[i], coords[i + 1]);
+            }
+            return total;
+        }
+
+        // Pause navigation
+        function pauseNavigation() {
+            if (navigationInterval) {
+                clearInterval(navigationInterval);
+                navigationInterval = null;
+            }
+            isPaused = true;
+            pausedTime = Date.now();
+            document.getElementById('startNavigation').style.display = 'block';
+            document.getElementById('pauseNavigation').style.display = 'none';
+        }
+
+        // Stop navigation
+        function stopNavigation() {
+            isNavigating = false;
+            isPaused = false;
+            if (navigationInterval) {
+                clearInterval(navigationInterval);
+                navigationInterval = null;
+            }
+            
+            if (vehicleMarker) {
+                vehicleMarker.remove();
+                vehicleMarker = null;
+            }
+            
+            currentRouteIndex = 0;
+            currentInstructionIndex = 0;
+            currentPosition = 0;
+            distanceTraveled = 0;
+            totalPausedDuration = 0;
+            currentSegmentIndex = 0;
+            segmentStartTime = null;
+            navigationSegments = [];
+            
+            document.getElementById('startNavigation').style.display = 'block';
+            document.getElementById('pauseNavigation').style.display = 'none';
+            document.getElementById('stopNavigation').style.display = 'none';
+            
+            document.getElementById('navSpeed').textContent = '-';
+        }
+
+        // Navigation control buttons
+        document.getElementById('startNavigation').addEventListener('click', () => {
+            startNavigation();
+        });
+
+        document.getElementById('pauseNavigation').addEventListener('click', () => {
+            pauseNavigation();
+        });
+
+        document.getElementById('stopNavigation').addEventListener('click', () => {
+            stopNavigation();
+        });
+
+        // ========== 3D VIEW CONTROLS ==========
+
+        // Toggle between 2D and 3D view
+        document.getElementById('viewToggle').addEventListener('click', () => {
+            is3DView = !is3DView;
+            const toggleBtn = document.getElementById('viewToggle');
+            const toggleText = document.getElementById('viewToggleText');
+            const controls3D = document.getElementById('mapControls3D');
+            
+            if (is3DView) {
+                // Enable 3D view
+                map.easeTo({
+                    pitch: currentPitch,
+                    bearing: currentBearing,
+                    duration: 1000
+                });
+                toggleBtn.classList.add('active');
+                toggleText.textContent = '3D View';
+                controls3D.classList.add('active');
+            } else {
+                // Switch to 2D view
+                map.easeTo({
+                    pitch: 0,
+                    bearing: 0,
+                    duration: 1000
+                });
+                toggleBtn.classList.remove('active');
+                toggleText.textContent = '2D View';
+                controls3D.classList.remove('active');
+            }
+        });
+
+        // Rotate left
+        document.getElementById('rotateLeft').addEventListener('click', () => {
+            currentBearing -= 15;
+            if (currentBearing < 0) currentBearing += 360;
+            map.easeTo({
+                bearing: currentBearing,
+                duration: 300
+            });
+        });
+
+        // Rotate right
+        document.getElementById('rotateRight').addEventListener('click', () => {
+            currentBearing += 15;
+            if (currentBearing >= 360) currentBearing -= 360;
+            map.easeTo({
+                bearing: currentBearing,
+                duration: 300
+            });
+        });
+
+        // Tilt up
+        document.getElementById('tiltUp').addEventListener('click', () => {
+            currentPitch = Math.min(currentPitch + 10, 60);
+            map.easeTo({
+                pitch: currentPitch,
+                duration: 300
+            });
+        });
+
+        // Tilt down
+        document.getElementById('tiltDown').addEventListener('click', () => {
+            currentPitch = Math.max(currentPitch - 10, 0);
+            map.easeTo({
+                pitch: currentPitch,
+                duration: 300
+            });
+        });
+
+        // Reset view
+        document.getElementById('resetView').addEventListener('click', () => {
+            currentPitch = 60; // Mapbox style dramatic 3D
+            currentBearing = 0;
+            map.easeTo({
+                pitch: currentPitch,
+                bearing: currentBearing,
+                duration: 1000
+            });
+        });
+
+        // Enable drag to rotate (right-click + drag)
+        let isRotating = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        map.on('mousedown', (e) => {
+            if (e.originalEvent.button === 2) { // Right mouse button
+                isRotating = true;
+                lastMouseX = e.originalEvent.clientX;
+                lastMouseY = e.originalEvent.clientY;
+            }
+        });
+
+        map.on('mousemove', (e) => {
+            if (isRotating && is3DView) {
+                const deltaX = e.originalEvent.clientX - lastMouseX;
+                const deltaY = e.originalEvent.clientY - lastMouseY;
+                
+                currentBearing += deltaX * 0.5;
+                currentPitch = Math.max(0, Math.min(60, currentPitch - deltaY * 0.2));
+                
+                if (currentBearing < 0) currentBearing += 360;
+                if (currentBearing >= 360) currentBearing -= 360;
+                
+                map.easeTo({
+                    bearing: currentBearing,
+                    pitch: currentPitch,
+                    duration: 0
+                });
+                
+                lastMouseX = e.originalEvent.clientX;
+                lastMouseY = e.originalEvent.clientY;
+            }
+        });
+
+        map.on('mouseup', () => {
+            isRotating = false;
+        });
+
+        // Prevent context menu on right-click
+        map.getCanvasContainer().addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+
+        // Update view toggle button state on load
+        map.on('load', () => {
+            document.getElementById('viewToggle').classList.add('active');
+            document.getElementById('viewToggleText').textContent = '3D View';
+            document.getElementById('mapControls3D').classList.add('active');
+        });
+
+        // Listen for messages from parent window (if embedded in iframe)
+        window.addEventListener('message', (event) => {
+            // Only accept messages from same origin
+            if (event.origin !== window.location.origin) return;
+            
+            // Reload data when device changes or refresh is requested
+            if (event.data && event.data.type === 'deviceChanged') {
+                fetchDeviceData();
+            } else if (event.data && event.data.type === 'refreshDeviceData') {
+                fetchDeviceData();
+            }
+        });
+
+        // Fetch data when page loads
+        fetchDeviceData();
+        
+        // Also reload when URL parameter changes (for same-page navigation)
+        let lastSerialNumber = getDeviceSerialNumberFromUrl();
+        let lastMapStyle = getMapStyleFromUrl();
+        
+        setInterval(() => {
+            const currentSerialNumber = getDeviceSerialNumberFromUrl();
+            const currentMapStyle = getMapStyleFromUrl();
+            
+            // Check if device changed
+            if (currentSerialNumber !== lastSerialNumber) {
+                lastSerialNumber = currentSerialNumber;
+                fetchDeviceData();
+            }
+            
+            // Check if map style changed
+            if (currentMapStyle !== lastMapStyle) {
+                lastMapStyle = currentMapStyle;
+                // Update map style - this will trigger 'style.load' event
+                map.setStyle(`mapbox://styles/mapbox/${currentMapStyle}`);
+            }
+        }, 500); // Check every 500ms
+    </script>
+</body>
+</html>
+
