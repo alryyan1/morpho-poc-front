@@ -30,6 +30,59 @@
         .info-panel,
         .tracking-panel,
         .drive-mode-panel,
+        .sensor-popup {
+            max-width: 200px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 4px;
+        }
+
+        .sensor-popup .sensor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .sensor-popup .sensor-item {
+            display: inline-block;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .sensor-popup .sensor-label {
+            font-weight: 500;
+            color: #555;
+            display: inline;
+        }
+
+        .sensor-popup .sensor-value {
+            font-weight: 600;
+            color: #333;
+            display: inline;
+            margin-left: 4px;
+        }
+
+        .sensor-popup .sensor-icon {
+            font-size: 14px;
+            margin-right: 4px;
+        }
+
+        .sensor-popup .sensor-group {
+            margin-top: 12px;
+        }
+
+        .sensor-popup .sensor-group-title {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #667eea;
+        }
+
         .controls,
         .view-toggle,
         .map-controls-3d,
@@ -418,41 +471,83 @@
         }
 
         .drive-mode-toggle {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
+            position: fixed;
+            bottom: 100px;
+            right: 100px;
             background: #e74c3c;
             color: white;
             border: none;
-            padding: 15px 25px;
+            padding: 10px 16px;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 13px;
             font-weight: bold;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 1000;
+            white-space: nowrap;
+            max-width: min(200px, calc(100vw - 40px));
+            box-sizing: border-box;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        @media (max-width: 768px) {
+            .drive-mode-toggle {
+                bottom: 10px;
+                right: 10px;
+                padding: 8px 12px;
+                font-size: 12px;
+                max-width: min(180px, calc(100vw - 20px));
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .drive-mode-toggle {
+                font-size: 11px;
+                padding: 6px 10px;
+                max-width: min(150px, calc(100vw - 20px));
+            }
         }
 
         .drive-mode-toggle:hover {
             background: #c0392b;
         }
 
-        .view-toggle {
+        .top-buttons-container {
             position: absolute;
             top: 20px;
             right: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 1001;
+            align-items: center;
+            flex-wrap: wrap;
+            max-width: calc(100vw - 80px);
+            justify-content: flex-end;
+        }
+        
+        @media (max-width: 768px) {
+            .top-buttons-container {
+                top: 70px;
+                right: 10px;
+                max-width: calc(100vw - 20px);
+                gap: 6px;
+            }
+        }
+
+        .view-toggle {
             background: white;
             border: none;
-            padding: 12px 20px;
+            padding: 8px 16px;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 1000;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            white-space: nowrap;
         }
 
         .view-toggle:hover {
@@ -505,6 +600,145 @@
             stroke: #e74c3c;
             stroke-width: 4;
             stroke-opacity: 0.8;
+        }
+
+        .close-all-popups-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .close-all-popups-btn:hover {
+            background: #c0392b;
+        }
+
+        .close-all-popups-btn.active {
+            background: #27ae60;
+        }
+
+        .close-all-popups-btn.active:hover {
+            background: #229954;
+        }
+
+        .sensor-item.alert .sensor-value {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        .sensor-settings-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1002;
+            display: none;
+            max-width: 350px;
+            font-size: 14px;
+        }
+
+        .sensor-settings-panel.active {
+            display: block;
+        }
+
+        .sensor-settings-panel h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .sensor-setting-item {
+            margin-bottom: 15px;
+        }
+
+        .sensor-setting-item label {
+            display: block;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .sensor-setting-item .range-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .sensor-setting-item input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .sensor-setting-item .range-separator {
+            color: #666;
+            font-weight: bold;
+        }
+
+        .settings-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .settings-buttons button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .settings-buttons button.save {
+            background: #27ae60;
+            color: white;
+        }
+
+        .settings-buttons button.save:hover {
+            background: #229954;
+        }
+
+        .settings-buttons button.cancel {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .settings-buttons button.cancel:hover {
+            background: #7f8c8d;
+        }
+
+        .settings-toggle-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .settings-toggle-btn:hover {
+            background: #5568d3;
         }
     </style>
 </head>
@@ -562,10 +796,46 @@
         </div>
     </div>
 
-    <button class="view-toggle" id="viewToggle">
-        <span>🌍</span>
-        <span id="viewToggleText">2D View</span>
-    </button>
+    <div class="top-buttons-container">
+        <button class="view-toggle" id="viewToggle">
+            <span>🌍</span>
+            <span id="viewToggleText">2D View</span>
+        </button>
+        <button class="close-all-popups-btn" id="closeAllPopupsBtn" title="Toggle all sensor reading cards">📋 Show Cards</button>
+        <button class="settings-toggle-btn" id="settingsToggleBtn" title="Configure sensor ranges">⚙️ Settings</button>
+    </div>
+
+    <div class="sensor-settings-panel" id="sensorSettingsPanel">
+        <h3>⚙️ Sensor Range Settings</h3>
+        <div class="sensor-setting-item">
+            <label>🌡️ Temperature (°C)</label>
+            <div class="range-inputs">
+                <input type="number" id="tempMin" placeholder="Min" step="0.1">
+                <span class="range-separator">-</span>
+                <input type="number" id="tempMax" placeholder="Max" step="0.1">
+            </div>
+        </div>
+        <div class="sensor-setting-item">
+            <label>💧 Humidity (%)</label>
+            <div class="range-inputs">
+                <input type="number" id="humidityMin" placeholder="Min" step="0.1">
+                <span class="range-separator">-</span>
+                <input type="number" id="humidityMax" placeholder="Max" step="0.1">
+            </div>
+        </div>
+        <div class="sensor-setting-item">
+            <label>💡 Light</label>
+            <div class="range-inputs">
+                <input type="number" id="lightMin" placeholder="Min" step="0.1">
+                <span class="range-separator">-</span>
+                <input type="number" id="lightMax" placeholder="Max" step="0.1">
+            </div>
+        </div>
+        <div class="settings-buttons">
+            <button class="save" id="saveSensorSettings">Save</button>
+            <button class="cancel" id="cancelSensorSettings">Cancel</button>
+        </div>
+    </div>
     
     <div class="map-controls-3d" id="mapControls3D">
         <button id="rotateLeft" title="Rotate Left">↺</button>
@@ -575,10 +845,10 @@
         <button id="resetView" title="Reset View">⟲</button>
     </div>
 
-    <button class="drive-mode-toggle" id="driveModeToggle">🚗 Drive Mode</button>
+    <button class="drive-mode-toggle" id="driveModeToggle" title="Drive Mode">🚚 Drive Mode</button>
 
     <div class="drive-mode-panel" id="driveModePanel">
-        <h3>🚗 Navigation</h3>
+        <h3>🚚 Navigation</h3>
         <div style="margin-bottom: 10px;">
             <label style="font-size: 12px; color: #666;">
                 <input type="checkbox" id="useActualRoute" style="margin-right: 5px;">
@@ -738,6 +1008,47 @@
 
         // Drive mode variables
         let isDriveMode = false;
+        
+        // Popups state - track if all popups are open or closed
+        let allPopupsOpen = false; // Start with popups closed - only show on click
+        
+        // Sensor allowable ranges configuration
+        const sensorRanges = {
+            temperature: { min: 0, max: 50 },      // Temperature in °C
+            humidity: { min: 20, max: 80 },        // Humidity in %
+            light: { min: 0, max: 1000 }           // Light level
+        };
+        
+        // Function to check if sensor value is out of range
+        function isSensorOutOfRange(sensorKey, value) {
+            if (value === null || value === undefined || value === '') {
+                return false; // Don't alert on missing data
+            }
+            
+            const range = sensorRanges[sensorKey];
+            if (!range) return false;
+            
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) return false;
+            
+            return numValue < range.min || numValue > range.max;
+        }
+        
+        // Function to get alert message for out-of-range sensor
+        function getSensorAlertMessage(sensorKey, value) {
+            const range = sensorRanges[sensorKey];
+            if (!range) return '';
+            
+            const numValue = parseFloat(value);
+            if (isNaN(numValue)) return '';
+            
+            if (numValue < range.min) {
+                return `Below minimum (${range.min})`;
+            } else if (numValue > range.max) {
+                return `Above maximum (${range.max})`;
+            }
+            return '';
+        }
         let navigationRoute = null;
         let navigationInstructions = [];
         let currentInstructionIndex = 0;
@@ -923,6 +1234,66 @@
             }
         }
 
+        // Generate popup HTML content for sensor readings
+        function generateSensorPopupHTML(data) {
+            if (!data) return '<div>No data available</div>';
+            
+            const formatDate = (timestamp) => {
+                if (!timestamp) return 'N/A';
+                const date = new Date(timestamp * 1000);
+                return date.toLocaleString();
+            };
+
+            const formatValue = (value, unit = '') => {
+                if (value === null || value === undefined || value === '') return 'N/A';
+                return `${value}${unit}`;
+            };
+
+            // Only show temperature, humidity, and light
+            const sensors = [
+                { label: 'Temperature', key: 'temperature', unit: '°C', icon: '🌡️' },
+                { label: 'Humidity', key: 'humidity', unit: '%', icon: '💧' },
+                { label: 'Light', key: 'light', unit: '', icon: '💡' },
+            ];
+
+            let html = `<div class="sensor-popup"><div class="sensor-list">`;
+
+            sensors.forEach(sensor => {
+                const value = data[sensor.key];
+                const isOutOfRange = isSensorOutOfRange(sensor.key, value);
+                const formattedValue = value !== null && value !== undefined && value !== '' 
+                    ? formatValue(value, sensor.unit) 
+                    : 'N/A';
+                const alertIcon = isOutOfRange ? '⚠️ ' : '';
+                
+                html += `<div class="sensor-item ${isOutOfRange ? 'alert' : ''}">
+                    <span class="sensor-icon">${sensor.icon}</span>
+                    <span class="sensor-label">${sensor.label}:</span>
+                    <span class="sensor-value">${alertIcon}${formattedValue}</span>
+                </div>`;
+            });
+
+            html += `</div></div>`;
+
+            return html;
+        }
+
+        // Find data for a specific coordinate
+        function findDataForCoordinate(coord) {
+            if (!allCoordinatesData || allCoordinatesData.length === 0) return null;
+            
+            // Find the closest matching coordinate data
+            const matchingData = allCoordinatesData.find(item => {
+                const itemCoord = item.coord;
+                if (!itemCoord) return false;
+                // Check if coordinates match (within small tolerance)
+                return Math.abs(itemCoord[0] - coord[0]) < 0.0001 && 
+                       Math.abs(itemCoord[1] - coord[1]) < 0.0001;
+            });
+            
+            return matchingData ? matchingData.data : null;
+        }
+
         // Add markers to the map
         function addMarkers() {
             // Clear existing markers (but keep source/destination markers and realtime vehicle marker)
@@ -965,16 +1336,34 @@
                 el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
                 el.style.cursor = 'pointer';
 
+                // Find corresponding data for this coordinate
+                const pointData = findDataForCoordinate(coord);
+                
+                // Create popup with sensor readings - positioned above the marker
+                const popup = new mapboxgl.Popup({
+                    offset: [0, -15], // Position above the marker
+                    closeButton: true,
+                    closeOnClick: false, // Don't close on map click so popups stay open
+                    className: 'sensor-popup-container',
+                    anchor: 'bottom'
+                }).setHTML(generateSensorPopupHTML(pointData));
+
                 const marker = new mapboxgl.Marker(el)
                     .setLngLat(coord)
+                    .setPopup(popup)
                     .addTo(map);
 
-                // Add click handler to marker
-                el.addEventListener('click', () => {
+                // Add click handler to marker - toggle popup (only show on click)
+                el.addEventListener('click', (e) => {
                     if (trackingMode === 'source') {
+                        e.stopPropagation();
                         setSource(coord);
                     } else if (trackingMode === 'destination') {
+                        e.stopPropagation();
                         setDestination(coord);
+                    } else {
+                        // Toggle popup on click
+                        marker.togglePopup();
                     }
                 });
 
@@ -987,25 +1376,54 @@
             if (coordinates.length === 0) return;
             
             const lastCoord = coordinates[coordinates.length - 1];
+            const pointData = findDataForCoordinate(lastCoord);
             
             if (!realtimeVehicleMarker) {
                 // Create vehicle marker (red, larger)
                 const el = document.createElement('div');
-                el.innerHTML = '🚗';
+                el.innerHTML = '🚚';
                 el.style.fontSize = '24px';
                 el.style.cursor = 'pointer';
                 el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
                 
+                // Create popup with sensor readings for current position - positioned above the marker
+                const popup = new mapboxgl.Popup({
+                    offset: [0, -15], // Position above the marker
+                    closeButton: true,
+                    closeOnClick: false, // Don't close on map click so popup stays open
+                    className: 'sensor-popup-container',
+                    anchor: 'bottom'
+                }).setHTML(generateSensorPopupHTML(pointData));
+                
                 realtimeVehicleMarker = new mapboxgl.Marker(el)
                     .setLngLat(lastCoord)
+                    .setPopup(popup)
                     .addTo(map);
+                
+                // Add click handler to vehicle marker - toggle popup (only show on click)
+                el.addEventListener('click', () => {
+                    realtimeVehicleMarker.togglePopup();
+                });
                 
                 currentVehiclePosition = lastCoord;
             } else {
-                // If not animating, just update position
+                // If not animating, just update position and popup
                 if (!isVehicleMoving) {
                     realtimeVehicleMarker.setLngLat(lastCoord);
                     currentVehiclePosition = lastCoord;
+                    
+                    // Update popup content with latest data
+                    if (pointData) {
+                        const popup = new mapboxgl.Popup({
+                            offset: [0, -15], // Position above the marker
+                            closeButton: true,
+                            closeOnClick: false, // Don't close on map click so popup stays open
+                            className: 'sensor-popup-container',
+                            anchor: 'bottom'
+                        }).setHTML(generateSensorPopupHTML(pointData));
+                        realtimeVehicleMarker.setPopup(popup);
+                        // Don't auto-open popup - only show on click
+                    }
                 }
             }
         }
@@ -1024,7 +1442,7 @@
             // Create vehicle marker if it doesn't exist
             if (!realtimeVehicleMarker) {
                 const el = document.createElement('div');
-                el.innerHTML = '🚗';
+                el.innerHTML = '🚚';
                 el.style.fontSize = '24px';
                 el.style.cursor = 'pointer';
                 el.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
@@ -1120,9 +1538,9 @@
                 currentVehiclePosition = currentPos;
                 
                 // Update map to follow vehicle (less frequently for performance)
-                // Prevent autofocus/autozoom when drive mode is active
+                // Only autofocus/autozoom when drive mode is ON
                 const now = Date.now();
-                if (now - lastMapUpdateTime > 200 && !isDriveMode) { // Update every 200ms, but skip if drive mode is active
+                if (now - lastMapUpdateTime > 200 && isDriveMode) { // Update every 200ms, but only if drive mode is active
                     map.flyTo({
                         center: currentPos,
                         zoom: 15,
@@ -1230,8 +1648,8 @@
         function focusOnLastCoordinate() {
             if (coordinates.length === 0) return;
             
-            // Prevent autofocus/autozoom when drive mode is active
-            if (isDriveMode) {
+            // Only autofocus/autozoom when drive mode is ON
+            if (!isDriveMode) {
                 return;
             }
 
@@ -1249,8 +1667,13 @@
         }
 
         // Fit map to show all coordinates (used by "Fit to Route" button)
-        function fitMapToBounds() {
+        function fitMapToBounds(force = false) {
             if (coordinates.length === 0) return;
+            
+            // Only autofit when drive mode is on, unless forced (user clicked button)
+            if (!force && !isDriveMode) {
+                return;
+            }
 
             const bounds = new mapboxgl.LngLatBounds();
             coordinates.forEach(coord => bounds.extend(coord));
@@ -1303,7 +1726,136 @@
 
         // Fit to bounds button
         document.getElementById('fitBounds').addEventListener('click', () => {
-            fitMapToBounds();
+            fitMapToBounds(true); // Force fit even if drive mode is off
+        });
+
+        // Toggle all popups (open or close)
+        function toggleAllPopups() {
+            const btn = document.getElementById('closeAllPopupsBtn');
+            
+            if (allPopupsOpen) {
+                // Close all popups
+                markers.forEach(marker => {
+                    if (marker.getPopup() && marker.getPopup().isOpen()) {
+                        marker.togglePopup();
+                    }
+                });
+                
+                // Close vehicle marker popup
+                if (realtimeVehicleMarker && realtimeVehicleMarker.getPopup() && realtimeVehicleMarker.getPopup().isOpen()) {
+                    realtimeVehicleMarker.togglePopup();
+                }
+                
+                allPopupsOpen = false;
+                btn.textContent = '📋 Show Cards';
+                btn.classList.remove('active');
+            } else {
+                // Open all popups
+                markers.forEach(marker => {
+                    if (marker.getPopup() && !marker.getPopup().isOpen()) {
+                        marker.togglePopup();
+                    }
+                });
+                
+                // Open vehicle marker popup
+                if (realtimeVehicleMarker && realtimeVehicleMarker.getPopup() && !realtimeVehicleMarker.getPopup().isOpen()) {
+                    realtimeVehicleMarker.togglePopup();
+                }
+                
+                allPopupsOpen = true;
+                btn.textContent = '✕ Hide Cards';
+                btn.classList.add('active');
+            }
+        }
+
+        document.getElementById('closeAllPopupsBtn').addEventListener('click', () => {
+            toggleAllPopups();
+        });
+
+        // Sensor settings panel handlers
+        function loadSensorSettingsToForm() {
+            document.getElementById('tempMin').value = sensorRanges.temperature.min;
+            document.getElementById('tempMax').value = sensorRanges.temperature.max;
+            document.getElementById('humidityMin').value = sensorRanges.humidity.min;
+            document.getElementById('humidityMax').value = sensorRanges.humidity.max;
+            document.getElementById('lightMin').value = sensorRanges.light.min;
+            document.getElementById('lightMax').value = sensorRanges.light.max;
+        }
+
+        function saveSensorSettings() {
+            const tempMin = parseFloat(document.getElementById('tempMin').value);
+            const tempMax = parseFloat(document.getElementById('tempMax').value);
+            const humidityMin = parseFloat(document.getElementById('humidityMin').value);
+            const humidityMax = parseFloat(document.getElementById('humidityMax').value);
+            const lightMin = parseFloat(document.getElementById('lightMin').value);
+            const lightMax = parseFloat(document.getElementById('lightMax').value);
+
+            // Validate ranges
+            if (isNaN(tempMin) || isNaN(tempMax) || tempMin >= tempMax) {
+                alert('Invalid temperature range. Min must be less than Max.');
+                return;
+            }
+            if (isNaN(humidityMin) || isNaN(humidityMax) || humidityMin >= humidityMax) {
+                alert('Invalid humidity range. Min must be less than Max.');
+                return;
+            }
+            if (isNaN(lightMin) || isNaN(lightMax) || lightMin >= lightMax) {
+                alert('Invalid light range. Min must be less than Max.');
+                return;
+            }
+
+            // Save ranges
+            sensorRanges.temperature = { min: tempMin, max: tempMax };
+            sensorRanges.humidity = { min: humidityMin, max: humidityMax };
+            sensorRanges.light = { min: lightMin, max: lightMax };
+
+            // Refresh all popups to show updated alerts
+            refreshAllPopups();
+
+            // Close settings panel
+            document.getElementById('sensorSettingsPanel').classList.remove('active');
+        }
+
+        function refreshAllPopups() {
+            // Refresh all marker popups
+            markers.forEach(marker => {
+                if (marker.getPopup()) {
+                    const coord = marker.getLngLat();
+                    const pointData = findDataForCoordinate([coord.lng, coord.lat]);
+                    if (pointData) {
+                        marker.getPopup().setHTML(generateSensorPopupHTML(pointData));
+                    }
+                }
+            });
+
+            // Refresh vehicle marker popup
+            if (realtimeVehicleMarker && realtimeVehicleMarker.getPopup()) {
+                const lastCoord = coordinates.length > 0 ? coordinates[coordinates.length - 1] : null;
+                if (lastCoord) {
+                    const pointData = findDataForCoordinate(lastCoord);
+                    if (pointData) {
+                        realtimeVehicleMarker.getPopup().setHTML(generateSensorPopupHTML(pointData));
+                    }
+                }
+            }
+        }
+
+        document.getElementById('settingsToggleBtn').addEventListener('click', () => {
+            const panel = document.getElementById('sensorSettingsPanel');
+            if (panel.classList.contains('active')) {
+                panel.classList.remove('active');
+            } else {
+                loadSensorSettingsToForm();
+                panel.classList.add('active');
+            }
+        });
+
+        document.getElementById('saveSensorSettings').addEventListener('click', () => {
+            saveSensorSettings();
+        });
+
+        document.getElementById('cancelSensorSettings').addEventListener('click', () => {
+            document.getElementById('sensorSettingsPanel').classList.remove('active');
         });
 
         // Add test point button - generates a new coordinate to test vehicle movement
@@ -2389,7 +2941,7 @@ Do not include any text, explanation, or markdown formatting. Only the JSON obje
                 // Create vehicle marker
                 if (!vehicleMarker) {
                     const el = document.createElement('div');
-                    el.innerHTML = '🚗';
+                    el.innerHTML = '🚚';
                     el.style.fontSize = '30px';
                     el.style.cursor = 'pointer';
                     

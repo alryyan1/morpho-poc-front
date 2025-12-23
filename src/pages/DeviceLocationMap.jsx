@@ -285,7 +285,7 @@ const DeviceLocationMap = () => {
           sx={{
             position: 'absolute',
             top: 20,
-            right: 20,
+            left: 20,
             zIndex: 1000,
           }}
           onClick={() => setDialogOpen(true)}
