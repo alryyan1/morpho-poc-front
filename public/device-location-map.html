@@ -518,7 +518,7 @@
     <div class="selection-mode" id="selectionMode">
         Click on the map to set <span id="selectionType">source</span>
     </div>
-    <div class="controls">
+    <div class="controls" style="display: none;">
         <button id="showRoute">Show Route</button>
         <button id="showMarkers" class="active">Show Markers</button>
         <button id="fitBounds">Fit to Route</button>
@@ -769,28 +769,31 @@
             return urlParams.get('mapStyle') || 'navigation-day-v1'; // Default to navigation-day-v1
         }
 
+        // Store timestamp parameters (can be updated via postMessage)
+        let currentStartTimestamp = null;
+        let currentEndTimestamp = null;
+
+        // Get timestamp parameters from URL or stored values
+        function getTimestampParams() {
+            const params = {};
+            // First check stored values (from postMessage), then URL params
+            const startTimestamp = currentStartTimestamp || new URLSearchParams(window.location.search).get('start_timestamp');
+            const endTimestamp = currentEndTimestamp || new URLSearchParams(window.location.search).get('end_timestamp');
+            if (startTimestamp) {
+                params.start_timestamp = startTimestamp;
+            }
+            if (endTimestamp) {
+                params.end_timestamp = endTimestamp;
+            }
+            return params;
+        }
+
         // API endpoint - uses serial_number, not numeric device_id
         function getApiUrl(serialNumber) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const startTimestamp = urlParams.get('startTimestamp');
-            const endTimestamp = urlParams.get('endTimestamp');
-
-            const params = new URLSearchParams();
-            params.set('limit', '100');
-            params.set('offset', '0');
-            params.set('order_by', 'timestamp');
-            params.set('order_direction', 'desc');
-
-            // Forward optional timestamp filters to the API
-            if (startTimestamp) {
-                params.set('start_timestamp', startTimestamp);
-            }
-
-            if (endTimestamp) {
-                params.set('end_timestamp', endTimestamp);
-            }
-
-            return `https://nova-suits.com/api/device-statuses/${serialNumber}?${params.toString()}`;
+            const baseUrl = `https://nova-suits.com/api/device-statuses/${serialNumber}?limit=100&offset=0&order_by=timestamp&order_direction=desc`;
+            const timestampParams = getTimestampParams();
+            const params = new URLSearchParams(timestampParams);
+            return params.toString() ? `${baseUrl}&${params.toString()}` : baseUrl;
         }
 
         // Fetch data from API
@@ -1117,8 +1120,9 @@
                 currentVehiclePosition = currentPos;
                 
                 // Update map to follow vehicle (less frequently for performance)
+                // Prevent autofocus/autozoom when drive mode is active
                 const now = Date.now();
-                if (now - lastMapUpdateTime > 200) { // Update every 200ms
+                if (now - lastMapUpdateTime > 200 && !isDriveMode) { // Update every 200ms, but skip if drive mode is active
                     map.flyTo({
                         center: currentPos,
                         zoom: 15,
@@ -1225,6 +1229,11 @@
         // Focus on the last (most recent) coordinate
         function focusOnLastCoordinate() {
             if (coordinates.length === 0) return;
+            
+            // Prevent autofocus/autozoom when drive mode is active
+            if (isDriveMode) {
+                return;
+            }
 
             // Get the last coordinate (most recent)
             const lastCoord = coordinates[coordinates.length - 1];
@@ -2738,20 +2747,38 @@ Do not include any text, explanation, or markdown formatting. Only the JSON obje
             if (event.data && event.data.type === 'deviceChanged') {
                 fetchDeviceData();
             } else if (event.data && event.data.type === 'refreshDeviceData') {
+                // Update timestamp parameters if provided
+                if (event.data.startTimestamp !== undefined) {
+                    currentStartTimestamp = event.data.startTimestamp;
+                }
+                if (event.data.endTimestamp !== undefined) {
+                    currentEndTimestamp = event.data.endTimestamp;
+                }
                 fetchDeviceData();
             }
         });
 
+        // Initialize timestamp variables from URL on page load
+        const initialUrlParams = new URLSearchParams(window.location.search);
+        currentStartTimestamp = initialUrlParams.get('start_timestamp') || null;
+        currentEndTimestamp = initialUrlParams.get('end_timestamp') || null;
+        
         // Fetch data when page loads
         fetchDeviceData();
         
         // Also reload when URL parameter changes (for same-page navigation)
         let lastSerialNumber = getDeviceSerialNumberFromUrl();
         let lastMapStyle = getMapStyleFromUrl();
+        const urlParams = new URLSearchParams(window.location.search);
+        let lastStartTimestamp = urlParams.get('start_timestamp');
+        let lastEndTimestamp = urlParams.get('end_timestamp');
         
         setInterval(() => {
             const currentSerialNumber = getDeviceSerialNumberFromUrl();
             const currentMapStyle = getMapStyleFromUrl();
+            const currentUrlParams = new URLSearchParams(window.location.search);
+            const urlStartTimestamp = currentUrlParams.get('start_timestamp');
+            const urlEndTimestamp = currentUrlParams.get('end_timestamp');
             
             // Check if device changed
             if (currentSerialNumber !== lastSerialNumber) {
@@ -2764,6 +2791,16 @@ Do not include any text, explanation, or markdown formatting. Only the JSON obje
                 lastMapStyle = currentMapStyle;
                 // Update map style - this will trigger 'style.load' event
                 map.setStyle(`mapbox://styles/mapbox/${currentMapStyle}`);
+            }
+            
+            // Check if timestamp parameters changed
+            if (urlStartTimestamp !== lastStartTimestamp || urlEndTimestamp !== lastEndTimestamp) {
+                lastStartTimestamp = urlStartTimestamp;
+                lastEndTimestamp = urlEndTimestamp;
+                // Update global timestamp variables from URL
+                currentStartTimestamp = urlStartTimestamp || null;
+                currentEndTimestamp = urlEndTimestamp || null;
+                fetchDeviceData();
             }
         }, 500); // Check every 500ms
     </script>

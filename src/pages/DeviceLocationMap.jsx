@@ -3,17 +3,16 @@ import {
   Box, 
   TextField, 
   MenuItem, 
-  Paper, 
-  CircularProgress, 
-  Alert, 
-  Switch, 
-  FormControlLabel, 
-  Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton
+  Button,
+  CircularProgress, 
+  Alert,
+  Stack,
+  IconButton,
+  Fab
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { devicesAPI } from '../services/api';
@@ -24,11 +23,9 @@ const DeviceLocationMap = () => {
   const [mapStyle, setMapStyle] = useState('navigation-day-v1');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(5); // in minutes
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(true);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const iframeRef = useRef(null);
 
   const mapStyles = [
@@ -46,71 +43,58 @@ const DeviceLocationMap = () => {
     loadDevices();
   }, []);
 
-  const buildIframeSrc = () => {
-    const params = new URLSearchParams();
-
-    if (selectedDeviceId) {
-      params.set('deviceId', selectedDeviceId);
-    }
-
-    if (mapStyle) {
-      params.set('mapStyle', mapStyle);
-    }
-
-    // Pass optional start/end timestamps (Unix seconds) to the HTML map,
-    // which forwards them to the API as start_timestamp / end_timestamp
-    if (startDate) {
-      const ts = Math.floor(new Date(startDate).getTime() / 1000);
-      if (!Number.isNaN(ts)) {
-        params.set('startTimestamp', String(ts));
-      }
-    }
-
-    if (endDate) {
-      const ts = Math.floor(new Date(endDate).getTime() / 1000);
-      if (!Number.isNaN(ts)) {
-        params.set('endTimestamp', String(ts));
-      }
-    }
-
-    const queryString = params.toString();
-    return `/device-location-map.html${queryString ? `?${queryString}` : ''}`;
-  };
-
   useEffect(() => {
-    if (iframeRef.current) {
-      iframeRef.current.src = buildIframeSrc();
+    if (selectedDeviceId && iframeRef.current) {
+      // Build URL parameters
+      const params = new URLSearchParams({
+        deviceId: selectedDeviceId,
+        mapStyle: mapStyle,
+      });
+      
+      // Add date range parameters if provided
+      if (dateFrom) {
+        // Convert date to Unix timestamp (seconds)
+        const timestampFrom = Math.floor(new Date(dateFrom).getTime() / 1000);
+        params.append('start_timestamp', timestampFrom.toString());
+      }
+      if (dateTo) {
+        // Convert date to Unix timestamp (seconds) and set to end of day
+        const dateToEnd = new Date(dateTo);
+        dateToEnd.setHours(23, 59, 59, 999);
+        const timestampTo = Math.floor(dateToEnd.getTime() / 1000);
+        params.append('end_timestamp', timestampTo.toString());
+      }
+      
+      // Update iframe src with device ID, map style, and date range parameters
+      const newSrc = `/device-location-map.html?${params.toString()}`;
+      iframeRef.current.src = newSrc;
     }
-  }, [selectedDeviceId, mapStyle, startDate, endDate]);
+  }, [selectedDeviceId, mapStyle, dateFrom, dateTo]);
 
-  // Function to trigger manual refresh
-  const triggerRefresh = () => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(
-        { type: 'refreshDeviceData' },
-        window.location.origin
-      );
-    }
-  };
-
-  // Auto-refresh device status based on configured interval
+  // Auto-refresh device status every 5 seconds
   useEffect(() => {
-    if (!selectedDeviceId || !iframeRef.current || !autoRefreshEnabled) return;
-
-    const intervalMs = refreshInterval * 60 * 1000; // Convert minutes to milliseconds
+    if (!selectedDeviceId || !iframeRef.current || dialogOpen) return;
 
     const interval = setInterval(() => {
-      // Send refresh message to iframe
+      // Send refresh message to iframe with current date range
       if (iframeRef.current?.contentWindow) {
+        const dateToEnd = dateTo ? new Date(dateTo) : null;
+        if (dateToEnd) {
+          dateToEnd.setHours(23, 59, 59, 999);
+        }
         iframeRef.current.contentWindow.postMessage(
-          { type: 'refreshDeviceData' },
+          { 
+            type: 'refreshDeviceData',
+            startTimestamp: dateFrom ? Math.floor(new Date(dateFrom).getTime() / 1000) : null,
+            endTimestamp: dateToEnd ? Math.floor(dateToEnd.getTime() / 1000) : null,
+          },
           window.location.origin
         );
       }
-    }, intervalMs);
+    }, 5000); // 5 seconds
 
     return () => clearInterval(interval);
-  }, [selectedDeviceId, autoRefreshEnabled, refreshInterval]);
+  }, [selectedDeviceId, dateFrom, dateTo, dialogOpen]);
 
   const loadDevices = async () => {
     try {
@@ -150,31 +134,16 @@ const DeviceLocationMap = () => {
     setMapStyle(event.target.value);
   };
 
-  const handleStartDateChange = (event) => {
-    setStartDate(event.target.value);
-  };
-
-  const handleEndDateChange = (event) => {
-    setEndDate(event.target.value);
-  };
-
-  const handleAutoRefreshToggle = (event) => {
-    setAutoRefreshEnabled(event.target.checked);
-  };
-
-  const handleRefreshIntervalChange = (event) => {
-    const value = parseFloat(event.target.value);
-    if (!isNaN(value) && value > 0) {
-      setRefreshInterval(value);
+  const handleDialogClose = () => {
+    if (selectedDeviceId) {
+      setDialogOpen(false);
     }
   };
 
-  const handleSettingsOpen = () => {
-    setSettingsOpen(true);
-  };
-
-  const handleSettingsClose = () => {
-    setSettingsOpen(false);
+  const handleApply = () => {
+    if (selectedDeviceId) {
+      setDialogOpen(false);
+    }
   };
 
   return (
@@ -198,142 +167,136 @@ const DeviceLocationMap = () => {
         }
       }}
     >
-      {/* Settings Button */}
-      <IconButton
-        onClick={handleSettingsOpen}
-        sx={{
-          position: 'absolute',
-          top: 20,
-          left: 20,
-          zIndex: 1000,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(10px)',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-          '&:hover': {
-            backgroundColor: 'rgba(255, 255, 255, 1)',
-          }
-        }}
-        size="large"
-      >
-        <SettingsIcon />
-      </IconButton>
-
       {/* Settings Dialog */}
       <Dialog 
-        open={settingsOpen} 
-        onClose={handleSettingsClose}
+        open={dialogOpen} 
+        onClose={(event, reason) => {
+          // Prevent closing on backdrop click if no device selected
+          if (reason === 'backdropClick' && !selectedDeviceId) {
+            return;
+          }
+          handleDialogClose();
+        }}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+          }
+        }}
       >
-        <DialogTitle>Map Settings</DialogTitle>
+        <DialogTitle>Device Location Map Settings</DialogTitle>
         <DialogContent>
-          {loading ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
-              <CircularProgress size={20} />
-              <span>Loading devices...</span>
-            </Box>
-          ) : error ? (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-              <TextField
-                select
-                label="Select Device"
-                value={selectedDeviceId}
-                onChange={handleDeviceChange}
-                fullWidth
-                size="small"
-              >
-                {devices.length === 0 ? (
-                  <MenuItem value="" disabled>
-                    No devices available
-                  </MenuItem>
-                ) : (
-                  devices.map((device) => (
-                    <MenuItem key={device.device_id} value={device.serial_number}>
-                      {device.serial_number} {device.device_type && `(${device.device_type})`}
-                    </MenuItem>
-                  ))
-                )}
-              </TextField>
-              <TextField
-                type="datetime-local"
-                label="Start Date / Time"
-                value={startDate}
-                onChange={handleStartDateChange}
-                fullWidth
-                size="small"
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                type="datetime-local"
-                label="End Date / Time"
-                value={endDate}
-                onChange={handleEndDateChange}
-                fullWidth
-                size="small"
-                InputLabelProps={{ shrink: true }}
-              />
-              <TextField
-                select
-                label="Map Style"
-                value={mapStyle}
-                onChange={handleMapStyleChange}
-                fullWidth
-                size="small"
-              >
-                {mapStyles.map((style) => (
-                  <MenuItem key={style.value} value={style.value}>
-                    {style.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Box sx={{ borderTop: '1px solid #e0e0e0', pt: 2, mt: 1 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={autoRefreshEnabled}
-                      onChange={handleAutoRefreshToggle}
-                      size="small"
-                    />
-                  }
-                  label="Auto Refresh"
-                  sx={{ mb: 1, display: 'block' }}
-                />
-                <TextField
-                  type="number"
-                  label="Refresh Interval (minutes)"
-                  value={refreshInterval}
-                  onChange={handleRefreshIntervalChange}
-                  fullWidth
-                  size="small"
-                  inputProps={{ min: 0.1, step: 0.1 }}
-                  disabled={!autoRefreshEnabled}
-                  sx={{ mb: 1 }}
-                />
-                <Button
-                  variant="outlined"
-                  size="small"
-                  fullWidth
-                  onClick={triggerRefresh}
-                  sx={{ mt: 1 }}
-                >
-                  Refresh Now
-                </Button>
+          <Stack spacing={3} sx={{ mt: 1 }}>
+            {loading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={20} />
+                <span>Loading devices...</span>
               </Box>
-            </Box>
-          )}
+            ) : error ? (
+              <Alert severity="error">
+                {error}
+              </Alert>
+            ) : (
+              <>
+                <TextField
+                  select
+                  label="Select Device"
+                  value={selectedDeviceId}
+                  onChange={handleDeviceChange}
+                  fullWidth
+                  required
+                  error={!selectedDeviceId}
+                  helperText={!selectedDeviceId ? 'Please select a device' : ''}
+                >
+                  {devices.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      No devices available
+                    </MenuItem>
+                  ) : (
+                    devices.map((device) => (
+                      <MenuItem key={device.device_id} value={device.serial_number}>
+                        {device.serial_number} {device.device_type && `(${device.device_type})`}
+                      </MenuItem>
+                    ))
+                  )}
+                </TextField>
+                
+                <TextField
+                  select
+                  label="Map Style"
+                  value={mapStyle}
+                  onChange={handleMapStyleChange}
+                  fullWidth
+                >
+                  {mapStyles.map((style) => (
+                    <MenuItem key={style.value} value={style.value}>
+                      {style.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+
+                <TextField
+                  label="Date From"
+                  type="datetime-local"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                />
+
+                <TextField
+                  label="Date To"
+                  type="datetime-local"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  error={dateFrom && dateTo && new Date(dateTo) < new Date(dateFrom)}
+                  helperText={dateFrom && dateTo && new Date(dateTo) < new Date(dateFrom) ? 'End date must be after start date' : ''}
+                />
+              </>
+            )}
+          </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleSettingsClose}>Close</Button>
+          <Button onClick={handleDialogClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleApply} 
+            variant="contained"
+            disabled={!selectedDeviceId || loading}
+          >
+            Apply
+          </Button>
         </DialogActions>
       </Dialog>
 
+      {/* Floating Settings Button */}
+      {!dialogOpen && (
+        <Fab
+          color="primary"
+          aria-label="settings"
+          sx={{
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            zIndex: 1000,
+          }}
+          onClick={() => setDialogOpen(true)}
+        >
+          <SettingsIcon />
+        </Fab>
+      )}
+
       <iframe
         ref={iframeRef}
-        src={buildIframeSrc()}
+        src={selectedDeviceId ? `/device-location-map.html?deviceId=${selectedDeviceId}&mapStyle=${mapStyle}` : `/device-location-map.html?mapStyle=${mapStyle}`}
         title="Device Location Map"
         style={{
           width: '100%',
