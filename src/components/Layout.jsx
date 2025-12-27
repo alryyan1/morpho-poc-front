@@ -1,5 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { devicesAPI } from '../services/api';
 import {
   Box,
   AppBar,
@@ -15,6 +17,16 @@ import {
   Chip,
   Button,
   Container,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -26,6 +38,7 @@ import {
   Logout as LogoutIcon,
   BugReport as TestIcon,
   Map as MapIcon,
+  ShowChart as ChartsIcon,
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -34,18 +47,58 @@ const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [chartsDialogOpen, setChartsDialogOpen] = useState(false);
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [devicesError, setDevicesError] = useState('');
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
+  const handleChartsClick = (e) => {
+    e.preventDefault();
+    setChartsDialogOpen(true);
+    loadDevices();
+  };
+
+  const loadDevices = async () => {
+    setLoadingDevices(true);
+    setDevicesError('');
+    try {
+      const response = await devicesAPI.getAll();
+      const data = response.data.data || response.data || [];
+      setDevices(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setDevicesError('Failed to load devices');
+      console.error('Error loading devices:', error);
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
+  const handleOpenCharts = () => {
+    if (selectedDeviceId) {
+      navigate(`/devices/${selectedDeviceId}/charts`);
+      setChartsDialogOpen(false);
+      setSelectedDeviceId('');
+    }
+  };
+
+  const handleCloseChartsDialog = () => {
+    setChartsDialogOpen(false);
+    setSelectedDeviceId('');
+    setDevicesError('');
+  };
+
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { path: '/shipments', label: 'Shipments', icon: <ShipmentsIcon /> },
     { path: '/devices', label: 'IoT Devices', icon: <DevicesIcon /> },
+    { path: '/devices', label: 'Sensor Charts', icon: <ChartsIcon />, highlight: true },
     { path: '/device-location-map', label: 'Device Location Map', icon: <MapIcon /> },
-    { path: '/device-location-map-google', label: 'Device Location Map (Google)', icon: <MapIcon /> },
     { path: '/policies', label: 'Policies', icon: <PoliciesIcon /> },
     { path: '/violations', label: 'Violations', icon: <ViolationsIcon /> },
     { path: '/users', label: 'Users', icon: <UsersIcon /> },
@@ -111,10 +164,48 @@ const Layout = ({ children }) => {
         <Toolbar />
         <Box sx={{ overflow: 'auto' }}>
           <List>
-            {menuItems.map((item) => {
-              const isActive = location.pathname === item.path;
+            {menuItems.map((item, index) => {
+              // Check if active - handle charts route specially
+              let isActive = location.pathname === item.path;
+              if (item.label === 'Sensor Charts') {
+                isActive = location.pathname.includes('/devices/') && location.pathname.includes('/charts');
+              }
+              
+              // Special handling for Sensor Charts - open dialog instead of navigating
+              if (item.label === 'Sensor Charts') {
+                return (
+                  <ListItem key={`${item.path}-${index}`} disablePadding>
+                    <ListItemButton
+                      onClick={handleChartsClick}
+                      selected={isActive}
+                      sx={{
+                        '&.Mui-selected': {
+                          bgcolor: 'primary.light',
+                          color: 'white',
+                          '&:hover': {
+                            bgcolor: 'primary.main',
+                          },
+                        '& .MuiListItemIcon-root': {
+                            color: 'white',
+                          },
+                        },
+                      }}
+                    >
+                      <ListItemIcon
+                        sx={{
+                          color: isActive ? 'white' : 'text.secondary',
+                        }}
+                      >
+                        {item.icon}
+                      </ListItemIcon>
+                      <ListItemText primary={item.label} />
+                    </ListItemButton>
+                  </ListItem>
+                );
+              }
+              
               return (
-                <ListItem key={item.path} disablePadding>
+                <ListItem key={`${item.path}-${index}`} disablePadding>
                   <ListItemButton
                     component={Link}
                     to={item.path}
@@ -162,6 +253,47 @@ const Layout = ({ children }) => {
           {children}
         </Container>
       </Box>
+
+      {/* Device Selection Dialog for Charts */}
+      <Dialog open={chartsDialogOpen} onClose={handleCloseChartsDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Select Device for Sensor Charts</DialogTitle>
+        <DialogContent>
+          {loadingDevices ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : devicesError ? (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {devicesError}
+            </Alert>
+          ) : (
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Select Device</InputLabel>
+              <Select
+                value={selectedDeviceId}
+                label="Select Device"
+                onChange={(e) => setSelectedDeviceId(e.target.value)}
+              >
+                {devices.map((device) => (
+                  <MenuItem key={device.device_id} value={device.device_id}>
+                    {device.serial_number} - {device.device_type}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseChartsDialog}>Cancel</Button>
+          <Button
+            onClick={handleOpenCharts}
+            variant="contained"
+            disabled={!selectedDeviceId || loadingDevices}
+          >
+            View Charts
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

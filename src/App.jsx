@@ -9,6 +9,7 @@ import ShipmentTracking from './pages/ShipmentTracking';
 import CreateShipment from './pages/CreateShipment';
 import IoTDevices from './pages/IoTDevices';
 import DeviceStatuses from './pages/DeviceStatuses';
+import DeviceSensorCharts from './pages/DeviceSensorCharts';
 import Policies from './pages/Policies';
 import Violations from './pages/Violations';
 import Users from './pages/Users';
@@ -32,8 +33,11 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  // Get base path from environment or default to /tms for production
+  const basename = import.meta.env.VITE_BASE_PATH || '/tms';
+  
   return (
-    <Router>
+    <Router basename={basename}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -112,6 +116,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <DeviceStatuses />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/devices/:id/charts"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <DeviceSensorCharts />
               </Layout>
             </ProtectedRoute>
           }

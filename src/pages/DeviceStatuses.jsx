@@ -34,6 +34,7 @@ import {
   Memory as MemoryIcon,
   AccessTime as TimeIcon,
   CheckCircle as ConnectedIcon,
+  ShowChart as ShowChartIcon,
 } from '@mui/icons-material';
 
 const DeviceStatuses = () => {
@@ -180,14 +181,24 @@ const DeviceStatuses = () => {
             {device.device_type} • Device ID: {device.device_id}
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={loadStatuses}
-          disabled={loadingStatuses}
-        >
-          Refresh
-        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button
+            variant="contained"
+            component={Link}
+            to={`/devices/${id}/charts`}
+            startIcon={<ShowChartIcon />}
+          >
+            View Charts
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={loadStatuses}
+            disabled={loadingStatuses}
+          >
+            Refresh
+          </Button>
+        </Stack>
       </Box>
 
       {/* Error Messages */}
